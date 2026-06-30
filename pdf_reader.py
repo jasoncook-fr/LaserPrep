@@ -49,18 +49,22 @@ def read_pdf(filename):
 
     for d in drawings:
 
+        # Ignore pure fill operations. They define filled areas,
+        # not laser-cut geometry.
+        if d.get("type") == "f":
+            continue
+
         colour = d.get("color")
 
+        # No stroke colour -> nothing to laser.
         if colour is None:
-            colour = (0, 0, 0)
+            continue
 
-        else:
-
-            colour = (
-                round(colour[0] * 255),
-                round(colour[1] * 255),
-                round(colour[2] * 255),
-            )
+        colour = (
+            round(colour[0] * 255),
+            round(colour[1] * 255),
+            round(colour[2] * 255),
+        )
 
         width = d.get("width")
 
@@ -136,3 +140,5 @@ def read_pdf(filename):
         print()
 
     return drawing
+
+
