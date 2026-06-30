@@ -17,13 +17,14 @@ INK_NS = "http://www.inkscape.org/namespaces/inkscape"
 
 NSMAP = {None: SVG_NS, "inkscape": INK_NS}
 
-
 def _rgb_to_hex(col):
-    r = max(0, min(255, round(col[0] * 255)))
-    g = max(0, min(255, round(col[1] * 255)))
-    b = max(0, min(255, round(col[2] * 255)))
-    return f"#{r:02X}{g:02X}{b:02X}"
+    """
+    Convert an integer RGB tuple into an SVG colour.
+    """
 
+    r, g, b = col
+
+    return f"#{r:02X}{g:02X}{b:02X}"
 
 def _svg_root():
     return ET.Element(

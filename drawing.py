@@ -6,7 +6,7 @@ class Point:
     x: float
     y: float
 
-Color = Tuple[float, float, float]
+Color = Tuple[int, int, int]
 
 @dataclass
 class Line:

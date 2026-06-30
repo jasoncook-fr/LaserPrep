@@ -105,3 +105,27 @@ def classify_colour(rgb):
         return ("NEAR", best_name, best_distance)
 
     return ("UNSUPPORTED", None, best_distance)
+
+def snap_colour(rgb):
+    """
+    Returns the colour that should be used by LaserPrep.
+
+    OFFICIAL:
+        Returned unchanged.
+
+    NEAR:
+        Snapped to the official laser colour.
+
+    UNSUPPORTED:
+        Returned unchanged.
+    """
+
+    status, name, distance = classify_colour(rgb)
+
+    if status == "OFFICIAL":
+        return rgb
+
+    if status == "NEAR":
+        return OFFICIAL_LASER_COLORS[name]
+
+    return rgb

@@ -52,6 +52,14 @@ def read_pdf(filename):
         if colour is None:
             colour = (0, 0, 0)
 
+        else:
+
+            colour = (
+                round(colour[0] * 255),
+                round(colour[1] * 255),
+                round(colour[2] * 255),
+            )
+
         width = d.get("width")
 
         if width is None:

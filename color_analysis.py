@@ -9,9 +9,8 @@ Version 0.7.1
 from drawing import Drawing, Line, Bezier
 from laser_palette import (
     OFFICIAL_LASER_COLORS,
-    colour_name,
+    classify_colour,
 )
-
 
 # ============================================================
 # REPORT
@@ -27,9 +26,11 @@ class ColorReport:
             for name in OFFICIAL_LASER_COLORS
         }
 
-        # Unknown colours
-        self.unknown = {}
+        # Near official colours
+        self.near = {}
 
+        # Unsupported colours
+        self.unsupported = {}
 
 # ============================================================
 # ANALYSIS
@@ -45,22 +46,30 @@ def analyse_colors(drawing: Drawing) -> ColorReport:
             continue
 
         # Convert float RGB (0–1) to integer RGB (0–255)
-        rgb = (
-            round(obj.stroke_color[0] * 255),
-            round(obj.stroke_color[1] * 255),
-            round(obj.stroke_color[2] * 255),
-        )
+        rgb = obj.stroke_color
 
-        name = colour_name(rgb)
+        status, name, distance = classify_colour(rgb)
 
-        if name is not None:
+        if status == "OFFICIAL":
 
             report.official[name] += 1
 
+        elif status == "NEAR":
+
+            if rgb not in report.near:
+
+                report.near[rgb] = {
+                    "target": name,
+                    "count": 0,
+                    "distance": distance,
+                }
+
+            report.near[rgb]["count"] += 1
+
         else:
 
-            report.unknown[rgb] = (
-                report.unknown.get(rgb, 0) + 1
+            report.unsupported[rgb] = (
+                report.unsupported.get(rgb, 0) + 1
             )
 
     return report

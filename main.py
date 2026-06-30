@@ -14,6 +14,7 @@ from pdf_reader import read_pdf
 from project import Project
 from svg_writer import write_svg
 from color_analysis import analyse_colors
+from colour_normalization import normalize_colours
 from geometry_cleanup import (
     analyse,
     remove_zero_length_lines,
@@ -92,10 +93,6 @@ def main() -> None:
 
         colors = analyse_colors(drawing)
 
-        removed_zero = remove_zero_length_lines(drawing)
-
-        removed_duplicates = remove_duplicate_lines(drawing)
-
         # ----------------------------------------------------
         # Decide whether rotation is required
         # ----------------------------------------------------
@@ -172,9 +169,6 @@ def main() -> None:
                 f"Shortest segment  : "
                 f"{geometry.shortest_line_mm:.6f} mm"
             )
-        print(f"Removed zero-length : {removed_zero}")
-        print(f"Removed duplicates  : {removed_duplicates}")
-
         print()
 
         print("Colours")
@@ -186,17 +180,51 @@ def main() -> None:
 
                 print(f"{name:<10} : {count}")
 
-        if colors.unknown:
+        print()
 
-            print()
-            print("Unknown Colours")
+        if colors.near:
 
-            for rgb, count in sorted(colors.unknown.items()):
+            print("Near Official Colours")
+            print("-------------------------------------")
+
+            for rgb, info in sorted(colors.near.items()):
 
                 print(
-                    f"{rgb} : {count}"
+                    f"{rgb} -> {info['target']} : "
+                    f"{info['count']}"
                 )
 
+            print()
+
+        if colors.unsupported:
+
+            print("Unsupported Colours")
+            print("-------------------------------------")
+
+            for rgb, count in sorted(colors.unsupported.items()):
+
+                print(f"{rgb} : {count}")
+
+            print()
+
+        # ----------------------------------------------------
+        # Apply modifications after analysis/reporting
+        # ----------------------------------------------------
+
+        normalization = normalize_colours(drawing)
+
+        if rotated:
+            # already rotated above
+            pass
+
+        removed_zero = remove_zero_length_lines(drawing)
+        removed_duplicates = remove_duplicate_lines(drawing)
+
+        print("Cleanup")
+        print("-------------------------------------")
+        print(f"Removed zero-length : {removed_zero}")
+        print(f"Removed duplicates  : {removed_duplicates}")
+        print(f"Colours corrected   : {normalization.corrected}")
         print()
     # ========================================================
     # Export SVG
@@ -223,3 +251,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
