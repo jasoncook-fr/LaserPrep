@@ -43,4 +43,5 @@ LASER_STROKE_WIDTH_MM = 0.01
 #
 # Decrease it if you want stricter validation.
 
+FIT_TOLERANCE_MM = 1.0
 COLOUR_TOLERANCE = 25.0

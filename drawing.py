@@ -29,6 +29,17 @@ class Bezier:
 GraphicObject = Union[Line, Bezier]
 
 @dataclass
+class Polyline:
+
+    points: list[Point] = field(default_factory=list)
+
+    stroke_color: tuple[int, int, int] = (0, 0, 0)
+
+    stroke_width: float = 0.01
+
+    import_order: int = 0
+
+@dataclass
 class Drawing:
     name: str
     width: float
@@ -126,6 +137,39 @@ class Drawing:
             self.drawing_width <= usable_height
         )
 
+
+    def overflow(self, usable_width: float, usable_height: float) -> tuple[float,float,float]:
+        """
+        Returns (width_overflow, height_overflow, total_overflow).
+        """
+        w = max(0.0, self.drawing_width - usable_width)
+        h = max(0.0, self.drawing_height - usable_height)
+        return w, h, w + h
+
+    def choose_best_orientation(
+        self,
+        usable_width: float,
+        usable_height: float,
+    ) -> tuple[bool, float, float]:
+
+        _, _, normal = self.overflow(usable_width, usable_height)
+
+        # rotated dimensions
+        rw = self.drawing_height
+        rh = self.drawing_width
+
+        rotated = (
+            max(0.0, rw - usable_width)
+            + max(0.0, rh - usable_height)
+        )
+
+        if rotated < normal:
+            self.rotate90()
+            self.width, self.height = self.height, self.width
+            return True, normal, rotated
+
+        return False, normal, rotated
+
     def _rotate_point_90(self, point: Point, center: Point) -> None:
         """
         Rotate one point 90° clockwise about a fixed centre.
@@ -179,3 +223,5 @@ class Drawing:
         print(f"   Width  : {self.drawing_width:.2f}")
         print(f"   Height : {self.drawing_height:.2f}")
         print()
+
+

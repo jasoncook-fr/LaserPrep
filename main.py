@@ -5,7 +5,8 @@ LaserPrep application entry point.
 
 Version 0.5
 """
-
+from geometry_chains import analyse as analyse_chains
+from geometry_statistics import analyse as geometry_statistics
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog
@@ -94,23 +95,15 @@ def main() -> None:
         colors = analyse_colors(drawing)
 
         # ----------------------------------------------------
-        # Decide whether rotation is required
+        # Choose the best orientation
         # ----------------------------------------------------
 
-        rotated = False
-
-        if not drawing.fits(
-            LARGE_USABLE_WIDTH_MM,
-            LARGE_USABLE_HEIGHT_MM,
-        ):
-
-            if drawing.fits_after_rotation(
+        rotated, normal_overflow, rotated_overflow = (
+            drawing.choose_best_orientation(
                 LARGE_USABLE_WIDTH_MM,
                 LARGE_USABLE_HEIGHT_MM,
-            ):
-
-                drawing.rotate90()
-                rotated = True
+            )
+        )
 
         # ----------------------------------------------------
         # Move drawing to display position
@@ -142,8 +135,13 @@ def main() -> None:
         )
 
         print(
-            f"Rotation     : "
-            f"{'Applied' if rotated else 'Not required'}"
+            f"Orientation  : "
+            f"{'Rotated' if rotated else 'Original'}"
+        )
+
+        print(
+            f"Overflow     : "
+            f"{min(normal_overflow, rotated_overflow):.2f} mm"
         )
 
         print(
@@ -226,6 +224,46 @@ def main() -> None:
         print(f"Removed duplicates  : {removed_duplicates}")
         print(f"Colours corrected   : {normalization.corrected}")
         print()
+
+        stats = geometry_statistics(drawing)
+
+        print()
+        print("Geometry Statistics")
+        print("-------------------------------------")
+        print(f"Total lines     : {stats.total_lines}")
+        print(f"< 0.01 mm       : {stats.lt_001}")
+        print(f"0.01-0.05 mm    : {stats.lt_005}")
+        print(f"0.05-0.10 mm    : {stats.lt_010}")
+        print(f"0.10-0.50 mm    : {stats.lt_050}")
+        print(f"0.50-1.00 mm    : {stats.lt_100}")
+        print(f"> 1.00 mm       : {stats.gt_100}")
+
+        chains = analyse_chains(drawing)
+
+        print()
+        print("Geometry Chains")
+        print("-------------------------------------")
+        print(f"Total chains        : {chains.total_chains}")
+        print(f"Longest chain       : {chains.longest_chain}")
+
+        if chains.total_chains:
+
+            avg = chains.total_segments / chains.total_chains
+
+        else:
+
+            avg = 0
+
+        print(f"Average chain       : {avg:.1f}")
+
+        print()
+        print("Distribution")
+        print(f"1 segment           : {chains.one}")
+        print(f"2 - 5 segments      : {chains.two_to_five}")
+        print(f"6 - 20 segments     : {chains.six_to_twenty}")
+        print(f"21 - 100 segments   : {chains.twentyone_to_hundred}")
+        print(f"> 100 segments      : {chains.over_hundred}")
+
     # ========================================================
     # Export SVG
     # ========================================================
@@ -251,5 +289,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 
 
