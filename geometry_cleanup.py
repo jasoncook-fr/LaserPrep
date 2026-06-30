@@ -131,32 +131,47 @@ def remove_duplicate_lines(drawing: Drawing) -> int:
     """
     Remove duplicate Line objects.
 
+    Keeps the last imported duplicate (highest import_order), which
+    corresponds to the top-most geometry in the PDF paint order.
+
     Returns the number removed.
     """
 
-    seen = set()
-
-    new_objects = []
-
     removed = 0
+    latest = {}
 
     for obj in drawing.objects:
 
         if not isinstance(obj, Line):
+            continue
 
+        key = _line_key(obj)
+
+        if key in latest:
+            removed += 1
+
+        latest[key] = obj
+
+    new_objects = []
+    emitted = set()
+
+    for obj in drawing.objects:
+
+        if not isinstance(obj, Line):
             new_objects.append(obj)
             continue
 
         key = _line_key(obj)
 
-        if key in seen:
-
-            removed += 1
+        if key in emitted:
             continue
 
-        seen.add(key)
-        new_objects.append(obj)
+        if latest[key] is obj:
+            new_objects.append(obj)
+            emitted.add(key)
 
     drawing.objects = new_objects
 
     return removed
+
+

@@ -45,6 +45,8 @@ def read_pdf(filename):
 
     drawings = page.get_drawings()
 
+    import_order = 0
+
     for d in drawings:
 
         colour = d.get("color")
@@ -86,10 +88,11 @@ def read_pdf(filename):
 
                         stroke_color=colour,
                         stroke_width=width,
-
+                        import_order=import_order,
                     )
 
                 )
+                import_order += 1
 
             # ------------------------------------
             # BEZIER
@@ -108,10 +111,11 @@ def read_pdf(filename):
 
                         stroke_color=colour,
                         stroke_width=width,
-
+                        import_order=import_order,
                     )
 
                 )
+                import_order += 1
 
             # ------------------------------------
             # UNKNOWN

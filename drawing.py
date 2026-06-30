@@ -14,6 +14,7 @@ class Line:
     end: Point
     stroke_color: Color
     stroke_width: float
+    import_order: int = 0
 
 @dataclass
 class Bezier:
@@ -23,6 +24,7 @@ class Bezier:
     end: Point
     stroke_color: Color
     stroke_width: float
+    import_order: int = 0
 
 GraphicObject = Union[Line, Bezier]
 
