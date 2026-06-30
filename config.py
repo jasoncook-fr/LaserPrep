@@ -29,3 +29,18 @@ SMALL_USABLE_HEIGHT_MM = SMALL_BED_HEIGHT_MM - (2 * DISPLAY_OFFSET_Y_MM)
 
 DISPLAY_STROKE_WIDTH_MM = 0.20
 LASER_STROKE_WIDTH_MM = 0.01
+
+# ============================================================
+# LASER COLOUR CONFIGURATION
+# ============================================================
+
+# Maximum RGB distance for automatic colour recognition.
+#
+# Colours farther away than this are considered unsupported.
+#
+# Increase this if student files frequently contain
+# slightly incorrect colours.
+#
+# Decrease it if you want stricter validation.
+
+COLOUR_TOLERANCE = 10.0

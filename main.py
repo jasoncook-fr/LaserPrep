@@ -13,6 +13,7 @@ from tkinter import filedialog
 from pdf_reader import read_pdf
 from project import Project
 from svg_writer import write_svg
+from color_analysis import analyse_colors
 from geometry_cleanup import (
     analyse,
     remove_zero_length_lines,
@@ -88,6 +89,8 @@ def main() -> None:
         drawing = read_pdf(pdf)
         #drawing.geometry_report = geometry
         geometry = analyse(drawing)
+
+        colors = analyse_colors(drawing)
 
         removed_zero = remove_zero_length_lines(drawing)
 
@@ -174,6 +177,27 @@ def main() -> None:
 
         print()
 
+        print("Colours")
+        print("-------------------------------------")
+
+        for name, count in colors.official.items():
+
+            if count > 0:
+
+                print(f"{name:<10} : {count}")
+
+        if colors.unknown:
+
+            print()
+            print("Unknown Colours")
+
+            for rgb, count in sorted(colors.unknown.items()):
+
+                print(
+                    f"{rgb} : {count}"
+                )
+
+        print()
     # ========================================================
     # Export SVG
     # ========================================================
