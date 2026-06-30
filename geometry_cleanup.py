@@ -1,0 +1,162 @@
+"""
+geometry_cleanup.py
+
+Geometry analysis tools.
+
+Version 0.6.1
+"""
+
+from drawing import Drawing, Line
+import math
+
+# ============================================================
+# REPORT
+# ============================================================
+
+class GeometryReport:
+
+    def __init__(self):
+
+        self.zero_length_lines = 0
+        self.tiny_lines = 0
+        self.duplicate_lines = 0
+
+        self.shortest_line_mm = None
+        self.duplicate_keys = set()
+
+# ============================================================
+# ANALYSIS
+# ============================================================
+
+def _line_key(line: Line):
+    """
+    Return a canonical representation of a line.
+
+    A→B and B→A produce exactly the same key.
+    Coordinates are rounded to 0.001 mm.
+    """
+
+    p1 = (
+        round(line.start.x, 3),
+        round(line.start.y, 3),
+    )
+
+    p2 = (
+        round(line.end.x, 3),
+        round(line.end.y, 3),
+    )
+
+    if p1 <= p2:
+        return (p1, p2)
+
+    return (p2, p1)
+
+def analyse(drawing: Drawing) -> GeometryReport:
+
+    report = GeometryReport()
+
+    seen_lines = set()
+
+    for obj in drawing.objects:
+
+        if not isinstance(obj, Line):
+            continue
+
+        key = _line_key(obj)
+
+        if key in seen_lines:
+
+            report.duplicate_lines += 1
+            report.duplicate_keys.add(key)
+
+        else:
+
+            seen_lines.add(key)
+
+        dx = obj.end.x - obj.start.x
+        dy = obj.end.y - obj.start.y
+
+        length = math.hypot(dx, dy)
+
+        if (
+            report.shortest_line_mm is None
+            or
+            length < report.shortest_line_mm
+        ):
+            report.shortest_line_mm = length
+
+        length2 = length * length
+
+        length2 = dx * dx + dy * dy
+
+        # Zero-length
+        if length2 == 0:
+            report.zero_length_lines += 1
+
+        # Tiny segments (0.01 mm)
+        elif length2 < (0.01 * 0.01):
+            report.tiny_lines += 1
+
+    return report
+
+def remove_zero_length_lines(drawing: Drawing) -> int:
+    """
+    Remove zero-length Line objects.
+
+    Returns the number removed.
+    """
+
+    new_objects = []
+
+    removed = 0
+
+    for obj in drawing.objects:
+
+        if isinstance(obj, Line):
+
+            dx = obj.end.x - obj.start.x
+            dy = obj.end.y - obj.start.y
+
+            if dx == 0.0 and dy == 0.0:
+                removed += 1
+                continue
+
+        new_objects.append(obj)
+
+    drawing.objects = new_objects
+
+    return removed
+
+def remove_duplicate_lines(drawing: Drawing) -> int:
+    """
+    Remove duplicate Line objects.
+
+    Returns the number removed.
+    """
+
+    seen = set()
+
+    new_objects = []
+
+    removed = 0
+
+    for obj in drawing.objects:
+
+        if not isinstance(obj, Line):
+
+            new_objects.append(obj)
+            continue
+
+        key = _line_key(obj)
+
+        if key in seen:
+
+            removed += 1
+            continue
+
+        seen.add(key)
+        new_objects.append(obj)
+
+    drawing.objects = new_objects
+
+    return removed
