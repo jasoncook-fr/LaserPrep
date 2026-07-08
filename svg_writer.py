@@ -16,6 +16,7 @@ from config import (
     LARGE_BED_HEIGHT_MM,
 )
 from drawing import Line, Bezier
+from vector_path import VectorPath
 from project import Project
 
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -87,22 +88,47 @@ def _write_line_paths(parent, lines):
             )
 
 
-def _write_bezier(parent, obj):
-    d = (
-        f"M {obj.start.x:.3f},{obj.start.y:.3f} "
-        f"C {obj.control1.x:.3f},{obj.control1.y:.3f} "
-        f"{obj.control2.x:.3f},{obj.control2.y:.3f} "
-        f"{obj.end.x:.3f},{obj.end.y:.3f}"
-    )
+def _write_imported_path(parent, path: VectorPath):
+    if not path.objects:
+        return
+
+    d = []
+    first = True
+    stroke = None
+
+    for obj in path.objects:
+        if stroke is None:
+            stroke = obj.stroke_color
+
+        if isinstance(obj, Line):
+            if first:
+                d.append(f"M {obj.start.x:.3f},{obj.start.y:.3f}")
+                first = False
+            else:
+                # Ensure continuity if needed
+                d.append(f"M {obj.start.x:.3f},{obj.start.y:.3f}")
+            d.append(f"L {obj.end.x:.3f},{obj.end.y:.3f}")
+
+        elif isinstance(obj, Bezier):
+            if first:
+                d.append(f"M {obj.start.x:.3f},{obj.start.y:.3f}")
+                first = False
+            d.append(
+                f"C {obj.control1.x:.3f},{obj.control1.y:.3f} "
+                f"{obj.control2.x:.3f},{obj.control2.y:.3f} "
+                f"{obj.end.x:.3f},{obj.end.y:.3f}"
+            )
 
     ET.SubElement(
         parent,
         "path",
         {
-            "d": d,
-            "stroke": _rgb_to_hex(obj.stroke_color),
-            "stroke-width": f"{obj.stroke_width:.3f}",
+            "d": " ".join(d),
+            "stroke": _rgb_to_hex(stroke),
+            "stroke-width": f"{DISPLAY_STROKE_WIDTH_MM:.3f}",
             "fill": "none",
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round",
         },
     )
 
@@ -115,19 +141,8 @@ def write_svg(project: Project, filename: Path):
 
         layer = _layer(root, drawing.name)
 
-        lines = []
-        beziers = []
-
-        for obj in drawing.objects:
-            if isinstance(obj, Line):
-                lines.append(obj)
-            elif isinstance(obj, Bezier):
-                beziers.append(obj)
-
-        _write_line_paths(layer, lines)
-
-        for bez in beziers:
-            _write_bezier(layer, bez)
+        for path in drawing.paths:
+            _write_imported_path(layer, path)
 
     ET.ElementTree(root).write(
         str(filename),

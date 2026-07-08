@@ -26,7 +26,7 @@ class Bezier:
     stroke_width: float
     import_order: int = 0
 
-GraphicObject = Union[Line, Bezier]
+PathSegment = Union[Line, Bezier]
 
 @dataclass
 class Polyline:
@@ -44,9 +44,10 @@ class Drawing:
     name: str
     width: float
     height: float
-    objects: List[GraphicObject] = field(default_factory=list)
+    objects: List[PathSegment] = field(default_factory=list)
+    paths: list = field(default_factory=list)
 
-    def add(self, obj: GraphicObject) -> None:
+    def add(self, obj: PathSegment) -> None:
         self.objects.append(obj)
 
     @property
