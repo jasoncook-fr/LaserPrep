@@ -29,6 +29,28 @@ class Bezier:
 PathSegment = Union[Line, Bezier]
 
 @dataclass
+class Path:
+
+    segments: List[PathSegment] = field(default_factory=list)
+    closed: bool = False
+
+    stroke_color: Color | None = None
+    fill_color: Color | None = None
+
+    stroke_width: float = 0.01
+
+    stroke_enabled: bool = True
+    fill_enabled: bool = False
+
+    # True when this path originates from imported text.
+    is_text: bool = False
+
+    import_order: int = 0
+
+    def add(self, segment: PathSegment) -> None:
+        self.segments.append(segment)
+
+@dataclass
 class Polyline:
 
     points: list[Point] = field(default_factory=list)
@@ -45,7 +67,7 @@ class Drawing:
     width: float
     height: float
     objects: List[PathSegment] = field(default_factory=list)
-    paths: list = field(default_factory=list)
+    paths: List[Path] = field(default_factory=list)
 
     def add(self, obj: PathSegment) -> None:
         self.objects.append(obj)
@@ -224,5 +246,7 @@ class Drawing:
         print(f"   Width  : {self.drawing_width:.2f}")
         print(f"   Height : {self.drawing_height:.2f}")
         print()
+
+
 
 

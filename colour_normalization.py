@@ -28,6 +28,11 @@ def normalize_colours(drawing: Drawing):
 
         rgb = obj.stroke_color
 
+        # Fill-only paths have no stroke.
+        # Laser colour normalization only applies to strokes.
+        if rgb is None:
+            continue
+
         snapped = snap_colour(rgb)
 
         if snapped != rgb:
@@ -35,5 +40,4 @@ def normalize_colours(drawing: Drawing):
             obj.stroke_color = snapped
 
             report.corrected += 1
-
     return report

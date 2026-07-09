@@ -1,9 +1,10 @@
 """
-svg_writer.py
+svg_writer_v2.py
 
 LaserPrep SVG exporter.
+Version 1.0
 
-Version 0.9
+Adds support for filled VectorPaths (used for imported text).
 """
 
 from pathlib import Path
@@ -16,14 +17,12 @@ from config import (
     LARGE_BED_HEIGHT_MM,
 )
 from drawing import Line, Bezier
-from vector_path import VectorPath
 from project import Project
 
 SVG_NS = "http://www.w3.org/2000/svg"
 INK_NS = "http://www.inkscape.org/namespaces/inkscape"
 NSMAP = {None: SVG_NS, "inkscape": INK_NS}
 
-# Maximum number of line segments per SVG path.
 PATH_SEGMENT_LIMIT = 5000
 
 
@@ -88,49 +87,64 @@ def _write_line_paths(parent, lines):
             )
 
 
-def _write_imported_path(parent, path: VectorPath):
-    if not path.objects:
+def _same_point(a, b, eps=1e-6):
+    return abs(a.x - b.x) < eps and abs(a.y - b.y) < eps
+
+
+def _write_imported_path(parent, path):
+    print("WRITE:", getattr(path, "is_text", False))
+    if path.is_empty:
         return
 
     d = []
-    first = True
-    stroke = None
+    stroke = path.stroke_color
+    fill = path.fill_color
+    previous_end = None
 
-    for obj in path.objects:
-        if stroke is None:
-            stroke = obj.stroke_color
+    for obj in path:
+
+        if previous_end is None or not _same_point(obj.start, previous_end):
+            d.append(f"M {obj.start.x:.3f},{obj.start.y:.3f}")
 
         if isinstance(obj, Line):
-            if first:
-                d.append(f"M {obj.start.x:.3f},{obj.start.y:.3f}")
-                first = False
-            else:
-                # Ensure continuity if needed
-                d.append(f"M {obj.start.x:.3f},{obj.start.y:.3f}")
             d.append(f"L {obj.end.x:.3f},{obj.end.y:.3f}")
+            previous_end = obj.end
 
         elif isinstance(obj, Bezier):
-            if first:
-                d.append(f"M {obj.start.x:.3f},{obj.start.y:.3f}")
-                first = False
             d.append(
-                f"C {obj.control1.x:.3f},{obj.control1.y:.3f} "
+                f"C "
+                f"{obj.control1.x:.3f},{obj.control1.y:.3f} "
                 f"{obj.control2.x:.3f},{obj.control2.y:.3f} "
                 f"{obj.end.x:.3f},{obj.end.y:.3f}"
             )
+            previous_end = obj.end
 
-    ET.SubElement(
-        parent,
-        "path",
-        {
-            "d": " ".join(d),
-            "stroke": _rgb_to_hex(stroke),
-            "stroke-width": f"{DISPLAY_STROKE_WIDTH_MM:.3f}",
-            "fill": "none",
-            "stroke-linecap": "round",
-            "stroke-linejoin": "round",
-        },
-    )
+    d.append("Z")
+
+    attrs = {"d": " ".join(d)}
+
+    if getattr(path, "is_text", False):
+        attrs["fill"] = "#000000"
+        attrs["fill-rule"] = "evenodd"
+        attrs["stroke"] = "none"
+        ET.SubElement(parent, "path", attrs)
+        return
+
+    if path.stroke_enabled and stroke is not None:
+        attrs["stroke"] = _rgb_to_hex(stroke)
+        attrs["stroke-width"] = f"{DISPLAY_STROKE_WIDTH_MM:.3f}"
+        attrs["stroke-linecap"] = "round"
+        attrs["stroke-linejoin"] = "round"
+    else:
+        attrs["stroke"] = "none"
+
+    if path.fill_enabled and fill is not None:
+        attrs["fill"] = _rgb_to_hex(fill)
+        attrs["fill-rule"] = "evenodd"
+    else:
+        attrs["fill"] = "none"
+
+    ET.SubElement(parent, "path", attrs)
 
 
 def write_svg(project: Project, filename: Path):
@@ -138,11 +152,39 @@ def write_svg(project: Project, filename: Path):
     root = _svg_root()
 
     for drawing in project.drawings:
-
         layer = _layer(root, drawing.name)
 
         for path in drawing.paths:
             _write_imported_path(layer, path)
+
+    ET.ElementTree(root).write(
+        str(filename),
+        pretty_print=True,
+        xml_declaration=True,
+        encoding="UTF-8",
+    )
+
+# ============================================================
+# DEBUG EXPORT
+# ============================================================
+
+def write_debug_svg(drawing, filename: Path):
+    """
+    Export a single Drawing exactly as it currently exists.
+
+    Used by the Diagnostics system.
+
+    No cleanup.
+    No colour normalization.
+    No modifications.
+    """
+
+    root = _svg_root()
+
+    layer = _layer(root, drawing.name)
+
+    for path in drawing.paths:
+        _write_imported_path(layer, path)
 
     ET.ElementTree(root).write(
         str(filename),

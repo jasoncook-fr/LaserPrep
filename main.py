@@ -10,12 +10,13 @@ from geometry_statistics import analyse as geometry_statistics
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog
-
+from text_import import import_text
 from pdf_reader import read_pdf
 from project import Project
 from svg_writer import write_svg
 from color_analysis import analyse_colors
 from colour_normalization import normalize_colours
+from diagnostics import diag
 from geometry_cleanup import (
     analyse,
     remove_zero_length_lines,
@@ -29,7 +30,10 @@ from config import (
     SMALL_USABLE_WIDTH_MM,
     SMALL_USABLE_HEIGHT_MM,
 )
-
+from debug_manager import DebugManager
+from config import DEBUG
+import debug_manager
+print(debug_manager.__file__)
 
 # ============================================================
 # Folder Selection
@@ -73,6 +77,9 @@ def main() -> None:
         return
 
     project = Project(folder.name)
+    debug = DebugManager(DEBUG)
+    debug.start_run(project.name)
+    diag.begin(project, folder)
 
     print("=" * 60)
     print(f"Project : {project.name}")
@@ -89,6 +96,32 @@ def main() -> None:
         print(f"Reading {pdf.name}...")
 
         drawing = read_pdf(pdf)
+
+        stats = drawing.pdf_statistics
+
+        debug.save_text(
+            f"{pdf.stem}_01_pdf_analysis.txt",
+            "\n".join([
+                f"Paths       : {stats['paths']}",
+                f"Objects     : {stats['objects']}",
+                f"Unsupported : {stats['unsupported']}",
+            ])
+        )
+
+        diag.export_svg(
+            drawing,
+            f"{pdf.stem}.geometry_raw.svg",
+        )
+        debug.save_svg(
+            folder / f"{pdf.stem}.geometry_raw.svg",
+            "02_geometry.svg"
+        )
+
+        import_text(
+            drawing,
+            pdf,
+        )
+
         #drawing.geometry_report = geometry
         geometry = analyse(drawing)
 
@@ -272,6 +305,7 @@ def main() -> None:
 
     print("Writing SVG...")
     write_svg(project, output_file)
+    debug.save_svg(output_file, "05_final.svg")
 
     print()
     print("=" * 60)
@@ -280,6 +314,8 @@ def main() -> None:
     print(f"Output : {output_file}")
     print()
 
+    debug.finish()
+    diag.end()
     project.summary()
 
 
@@ -289,6 +325,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 
 
 

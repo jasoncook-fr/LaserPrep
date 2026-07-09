@@ -48,6 +48,11 @@ def analyse_colors(drawing: Drawing) -> ColorReport:
         # Convert float RGB (0–1) to integer RGB (0–255)
         rgb = obj.stroke_color
 
+        # Filled paths have no stroke colour.
+        # They will be analysed separately later.
+        if rgb is None:
+            continue
+
         status, name, distance = classify_colour(rgb)
 
         if status == "OFFICIAL":

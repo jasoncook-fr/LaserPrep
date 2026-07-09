@@ -1,0 +1,11 @@
+==================================================
+LaserPrep Debug Session
+==================================================
+Project : quarantine
+Started : 2026-07-09 17:41:43.269706
+
+Missing file : /home/jaz/Nextcloud/Dev/ENSAM/JASON/LaserPrep/TEST_FILES/quarantine/Cartouche_A.geometry_raw.svg
+Missing file : /home/jaz/Nextcloud/Dev/ENSAM/JASON/LaserPrep/TEST_FILES/quarantine/Cartouche_B.geometry_raw.svg
+Missing file : /home/jaz/Nextcloud/Dev/ENSAM/JASON/LaserPrep/TEST_FILES/quarantine/Cartouche_C.geometry_raw.svg
+
+Finished : 2026-07-09 17:41:43.713096
