@@ -32,8 +32,6 @@ from config import (
 )
 from debug_manager import DebugManager
 from config import DEBUG
-import debug_manager
-print(debug_manager.__file__)
 
 # ============================================================
 # Folder Selection
@@ -120,6 +118,11 @@ def main() -> None:
         import_text(
             drawing,
             pdf,
+        )
+
+        diag.export_svg(
+            drawing,
+            f"{pdf.stem}.merged_before_move.svg",
         )
 
         #drawing.geometry_report = geometry

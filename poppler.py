@@ -89,7 +89,7 @@ def text_to_paths(pdf_file: str | Path,
         str(pdf_file),
         str(svg_file),
     ]
-
+    '''
     print()
     print("=" * 60)
     print("Poppler")
@@ -97,7 +97,7 @@ def text_to_paths(pdf_file: str | Path,
     print(f"Input  : {pdf_file}")
     print(f"Output : {svg_file}")
     print()
-
+    '''
     result = subprocess.run(
         command,
         capture_output=True,

@@ -37,22 +37,26 @@ def _point(p):
 # ------------------------------------------------------------
 # Path conversion
 # ------------------------------------------------------------
+def _same_point(a, b, eps=1e-6):
+    return (
+        abs(a.x - b.x) < eps and
+        abs(a.y - b.y) < eps
+    )
+
 
 def _vector_path_to_svg(path):
 
     commands = []
 
-    first = True
+    previous_end = None
 
     for obj in path:
 
-        if first:
+        if previous_end is None or not _same_point(obj.start, previous_end):
 
             commands.append(
                 f"M {_point(obj.start)}"
             )
-
-            first = False
 
         if obj.__class__.__name__ == "Line":
 
@@ -69,8 +73,11 @@ def _vector_path_to_svg(path):
                 f"{_point(obj.end)}"
             )
 
-    return " ".join(commands)
+        previous_end = obj.end
 
+    commands.append("Z")
+
+    return " ".join(commands)
 
 # ------------------------------------------------------------
 # Public API

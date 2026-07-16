@@ -94,7 +94,6 @@ def _same_point(a, b, eps=1e-6):
 
 
 def _write_imported_path(parent, path):
-    '''
     global PATH_INDEX
     PATH_INDEX += 1
     if PATH_INDEX == 16:
@@ -106,7 +105,6 @@ def _write_imported_path(parent, path):
 
         for i, obj in enumerate(path.objects):
             print(i, type(obj).__name__, obj.start, "->", obj.end)
-    '''
     if path.is_empty:
         return
 

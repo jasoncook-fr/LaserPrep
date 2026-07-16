@@ -1,171 +1,232 @@
 # LaserPrep
 
-**LaserPrep** is a Python tool for preparing student vector drawings for laser cutting.
+LaserPrep is a Python utility that converts student PDF files into a single
+Inkscape-compatible SVG for laser cutting.
 
-Its primary purpose is to automate the preparation of PDF submissions by converting them into clean SVG files that can be opened directly in Inkscape and sent to an Epilog laser cutter.
-
----
-
-# Current Status
-
-**Development Branch:** `text-import`
-
-This branch introduces the first complete implementation of **PDF text recovery**.
-
-Instead of losing text during PDF import, LaserPrep now reconstructs text as editable vector geometry by combining PyMuPDF and Poppler.
+The project was developed for the Digital Fabrication Lab at ENSAM Montpellier
+to automate the preparation of hundreds of student drawings while detecting
+common problems before they reach the laser cutter.
 
 ---
 
 # Features
 
-## PDF Geometry Import
+- Imports vector geometry directly from PDF using MuPDF.
+- Imports text accurately through Poppler.
+- Merges geometry and text into a unified internal representation.
+- Normalizes laser colours.
+- Detects unsupported colours.
+- Removes duplicate geometry.
+- Removes zero-length segments.
+- Produces one SVG containing all submitted drawings on separate layers.
+- Generates validation and geometry reports.
 
-Geometry is extracted directly from the PDF using **PyMuPDF**.
-
-Supported primitives:
-
-- Lines
-- Cubic Bézier curves
-- Closed paths
-- Stroke colours
-- Stroke widths
-
-Geometry is preserved as native LaserPrep objects.
+Raster images are intentionally ignored.
 
 ---
 
-## SVG Text Import (NEW)
-
-Text is recovered using a dedicated pipeline:
+# Pipeline
 
 ```
-PDF
-    │
-    ▼
-pdftocairo (Poppler)
-    │
-    ▼
-SVG
-    │
-    ▼
-SVG Path Parser
-    │
-    ▼
-SVG Transform
-    │
-    ▼
-Glyph Resolver
-    │
-    ▼
-VectorPath
+                PDF
+                 │
+        ┌────────┴────────┐
+        │                 │
+        ▼                 ▼
+     MuPDF           Poppler
+   (Geometry)         (Text)
+        │                 │
+        ▼                 ▼
+svg_geometry_import   svg_text_import
+        │                 │
+        └────────┬────────┘
+                 ▼
+         Unified Drawing Model
+                 │
+        geometry_cleanup
+                 │
+        colour_normalization
+                 │
+         svg_geometry_export
+                 │
+              SVG Output
 ```
 
-Implemented features:
-
-- SVG path parsing
-- Cubic Bézier support
-- Compound SVG paths
-- SVG transform matrices
-- `<symbol>` glyph library
-- `<use>` resolution
-- Filled glyph rendering
-- Even-odd fill support
-
-Fonts are reconstructed as true vector geometry.
+Geometry and text are intentionally imported by different engines because no
+single library correctly handles every PDF encountered during testing.
 
 ---
 
-# Current Architecture
+# Project Structure
 
 ```
 main.py
-│
-├── pdf_reader.py
-│      │
-│      ├── PyMuPDF geometry import
-│      └── Text import pipeline
-│
-├── text_import.py
-│      │
-│      ├── Poppler conversion
-│      ├── SVG parsing
-│      └── Drawing merge
-│
-├── svg_path_parser.py
-├── svg_transform.py
-├── svg_text_import.py
-│
-└── svg_writer.py
+
+pdf_reader.py
+
+drawing.py
+vector_path.py
+
+svg_geometry_import.py
+svg_text_import.py
+svg_path_parser.py
+svg_transform.py
+svg_geometry_export.py
+
+geometry_cleanup.py
+geometry_statistics.py
+geometry_chains.py
+
+colour_normalization.py
+color_analysis.py
+laser_palette.py
+
+svg_writer.py
+
+diagnostics.py
+debug_manager.py
+
+config.py
+project.py
+
+tools/
+TEST_FILES/
+debug/
 ```
 
 ---
 
-# Design Philosophy
+# Main Components
 
-LaserPrep keeps PDF geometry and text recovery separate.
+## pdf_reader.py
 
-Geometry is read directly from the PDF using PyMuPDF.
-
-Text is reconstructed from Poppler-generated SVG.
-
-This avoids the limitations of either library alone.
+Coordinates the complete import process.
 
 ---
 
-# Current Limitations
+## svg_geometry_import.py
 
-Some CAD-generated PDFs (observed with Archicad educational exports) contain page elements that are **not exported by `pdftocairo -svg`**.
+Imports all vector geometry using MuPDF.
 
-Examples include:
+Responsible for:
 
-- title block text
-- decorative graphics
-- logos
-- title block ornaments
+- paths
+- lines
+- Béziers
+- colours
+- transforms
 
-In these files, Poppler exports only the educational watermark.
-
-Since those objects never appear in the generated SVG, LaserPrep cannot currently recover them.
-
-This appears to be related to the internal PDF structure rather than the LaserPrep importer.
-
-Investigation is ongoing.
+Text is intentionally ignored.
 
 ---
 
-# Roadmap
+## svg_text_import.py
 
-## Completed
+Imports text through Poppler.
 
-- ✔ PDF geometry import
-- ✔ Colour preservation
-- ✔ Bézier support
-- ✔ Geometry analysis
-- ✔ Duplicate removal
-- ✔ SVG export
-- ✔ Text recovery
-- ✔ Compound glyph support
-- ✔ Filled glyph rendering
+Responsible for:
 
-## In Progress
+- glyph extraction
+- glyph positioning
+- compound glyphs
+- filled text paths
 
-- Investigation of Archicad title block objects
-- Robust handling of additional PDF object types
-- Improved error reporting
-- Project cleanup and refactoring
+White-filled decorative vectors generated by some CAD applications are ignored.
 
 ---
 
-# Dependencies
+## svg_path_parser.py
 
-Python 3.11+
+Parses SVG path commands into the internal `VectorPath` representation.
 
-Libraries:
+Supports:
 
-- PyMuPDF
-- lxml
-- Poppler (`pdftocairo`)
-- tkinter (folder selection)
+- M
+- L
+- H
+- V
+- C
+- Z
+
+Compound paths are fully supported.
+
+The parser explicitly creates the closing segment generated by the SVG `Z`
+command.
+
+---
+
+## geometry_cleanup.py
+
+Repairs imported geometry.
+
+Current operations include:
+
+- duplicate removal
+- zero-length removal
+
+---
+
+## colour_normalization.py
+
+Maps imported colours to the laser cutter palette.
+
+---
+
+## svg_geometry_export.py
+
+Writes the final SVG file.
+
+Responsible for:
+
+- layers
+- colours
+- fills
+- stroke widths
+
+---
+
+# Output
+
+LaserPrep generates one SVG containing:
+
+- one layer per PDF
+- normalized laser colours
+- corrected stroke widths
+- preserved text as vector geometry
+
+The SVG opens directly in Inkscape.
+
+---
+
+# Supported PDF Sources
+
+LaserPrep has been tested with:
+
+- Adobe Illustrator
+- Inkscape
+- Archicad
+- Poppler-generated SVG
+- MuPDF
+
+Additional formats can be added as new test cases become available.
+
+---
+
+# Development
+
+Debugging tools are located in:
+
+```
+tools/
+```
+
+Temporary debugging output is written to:
+
+```
+debug/
+```
+
+These files are not required for normal operation.
 
 ---
 

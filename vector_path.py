@@ -1,8 +1,6 @@
 from dataclasses import dataclass, field
 from drawing import PathSegment
 
-print("LOADED VECTOR_PATH:", __file__)
-
 @dataclass
 class VectorPath:
 
@@ -24,6 +22,16 @@ class VectorPath:
     is_text: bool = False
 
     group_id: int = 0
+
+    closed: bool = False
+
+    # Original SVG transform (MuPDF geometry pipeline)
+    transform: str | None = None
+
+    # Traceability
+    source_drawing: int | None = None
+    source_bbox = None
+    source_items: int = 0
 
     def add(self, segment: PathSegment):
         self.objects.append(segment)

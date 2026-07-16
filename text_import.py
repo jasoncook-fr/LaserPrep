@@ -1,6 +1,4 @@
 """
-text_import.py
-
 LaserPrep
 
 Imports text geometry from a PDF by:
@@ -15,15 +13,17 @@ Imports text geometry from a PDF by:
       ↓
     Drawing
 
-Version 1.0
+Version 1.1
 """
 
 from pathlib import Path
+
 from svg_analysis import analyze_svg
 from poppler import text_to_paths
 from svg_text_import import import_svg_paths
 from diagnostics import diag
 from debug_svg_writer import write_imported_paths
+
 
 # ============================================================
 # Public API
@@ -46,12 +46,12 @@ def import_text(drawing, pdf_file):
     pdf_file = Path(pdf_file)
 
     svg_file = pdf_file.with_suffix(".text.svg")
-
+    '''
     print()
     print("=" * 60)
     print("TEXT IMPORT")
     print("=" * 60)
-
+    '''
     # --------------------------------------------------------
     # PDF -> SVG
     # --------------------------------------------------------
@@ -72,7 +72,7 @@ def import_text(drawing, pdf_file):
 
     analysis = analyze_svg(svg_file)
 
-    print(f"SVG mode : {analysis.mode}")
+    #print(f"SVG mode : {analysis.mode}")
 
     if analysis.mode == "GLYPH_REFERENCES":
         print("Glyph-based text detected.")
@@ -85,6 +85,8 @@ def import_text(drawing, pdf_file):
 
     text_paths = import_svg_paths(svg_file)
 
+    print(f"Imported text paths : {len(text_paths)}")
+
     debug_svg = (
         diag.debug_folder
         / f"{pdf_file.stem}.imported_text.svg"
@@ -94,6 +96,10 @@ def import_text(drawing, pdf_file):
         text_paths,
         debug_svg,
     )
+
+    # --------------------------------------------------------
+    # Merge into Drawing
+    # --------------------------------------------------------
 
     print(f"Merging {len(text_paths)} text paths...")
 
@@ -105,9 +111,7 @@ def import_text(drawing, pdf_file):
 
         # VectorPath implements __iter__()
         for obj in path:
-
             drawing.add(obj)
-
             object_count += 1
 
     print(f"Imported objects : {object_count}")
@@ -115,14 +119,15 @@ def import_text(drawing, pdf_file):
     # --------------------------------------------------------
     # Cleanup
     # --------------------------------------------------------
-
+    '''
     try:
-        #svg_file.unlink()
+        # Uncomment when debugging is no longer needed.
+        # svg_file.unlink()
 
         print("Temporary SVG removed.")
 
     except Exception:
 
         print("Temporary SVG kept.")
-
+    '''
     print()

@@ -56,23 +56,54 @@ def _walk(node, current, glyph):
     for child in node:
         _walk(child, combined, glyph)
 
-
 def _walk_direct(node, current, out):
+
     local = AffineTransform.from_svg(node.attrib.get("transform", ""))
     combined = current @ local
 
     if _strip(node.tag) == "path":
+
         d = node.attrib.get("d", "")
         style = node.attrib.get("style", "")
 
-        if d.strip() and "stroke:none" in style:
-            for vp in parse_svg_path(d, stroke_color=(0, 0, 0), stroke_width=0.01):
+        if not d.strip():
+            pass
+
+        elif "stroke:none" not in style:
+            pass
+
+        #
+        # IMPORTANT:
+        #
+        # Some CAD / Archicad PDFs contain filled vector artwork
+        # (typically white) that Poppler exports as:
+        #
+        #     stroke:none;
+        #     fill:rgb(100%,100%,100%);
+        #
+        # Those are NOT text glyphs.
+        #
+        # Only import black filled paths as direct text.
+        #
+        elif "fill:rgb(100%" in style:
+            pass
+
+        else:
+
+            for vp in parse_svg_path(
+                d,
+                stroke_color=(0, 0, 0),
+                stroke_width=0.01,
+            ):
+
                 vp = _transform_path(vp, combined)
                 vp = _scale_mm(vp)
+
                 vp.stroke_enabled = False
                 vp.fill_enabled = True
                 vp.fill_color = (0, 0, 0)
                 vp.is_text = True
+
                 out.append(vp)
 
     for child in node:
@@ -120,6 +151,7 @@ def import_svg_paths(svg_filename):
 
         for vp in glyphs[gid]:
             obj = _scale_mm(_translate(vp, dx, dy))
+            first = next(iter(obj))
             obj.filled = True
             obj.is_text = True
             obj.group_id = group_id
@@ -129,13 +161,8 @@ def import_svg_paths(svg_filename):
 
     result = direct_paths + result
 
-    print("=" * 60)
-    print("SVG TEXT IMPORT D")
-    print("=" * 60)
-    print(f"Glyph definitions : {len(glyphs)}")
-    print(f"Direct paths      : {len(direct_paths)}")
-    print(f"Total paths       : {len(result)}")
-
     return result
+
+
 
 

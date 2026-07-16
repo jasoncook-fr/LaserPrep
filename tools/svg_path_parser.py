@@ -1,12 +1,14 @@
 """
-LaserPrep SVG Path Parser
-Version 2.1 (Z experiment)
+svg_path_parser_v2.py
 
-Changes
--------
-* Explicitly emits the closing segment for every Z command.
-* Keeps one SVG <path> as one VectorPath.
-* Preserves compound paths.
+LaserPrep SVG Path Parser
+Version 2.0
+
+Changes from v1.0
+-----------------
+* One SVG <path> -> one VectorPath.
+* Supports compound paths (multiple M...Z contours).
+* Z closes the current contour but does NOT end the VectorPath.
 """
 
 from __future__ import annotations
@@ -16,20 +18,14 @@ import re
 from drawing import Point, Line, Bezier
 from vector_path import VectorPath
 
-TOKEN_RE = re.compile(
-    r"[MLHVCZ]|[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?"
-)
-
-COMMANDS = {"M", "L", "H", "V", "C", "Z"}
+TOKEN_RE = re.compile(r"[MLHVCZ]|[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?")
+COMMANDS = {"M","L","H","V","C","Z"}
 
 
 def tokenize(path_data: str):
     tokens = []
     for t in TOKEN_RE.findall(path_data):
-        if t in COMMANDS:
-            tokens.append(t)
-        else:
-            tokens.append(float(t))
+        tokens.append(t if t in COMMANDS else float(t))
     return tokens
 
 
@@ -39,6 +35,17 @@ def parse_svg_path(
     stroke_width=0.01,
     transform=None,
 ):
+    """
+    Parse one SVG path element.
+
+    Returns
+    -------
+    list[VectorPath]
+
+    Currently returns a list containing a single VectorPath to remain
+    compatible with the existing importer. Internally, that VectorPath
+    may contain multiple closed contours.
+    """
 
     tokens = tokenize(path_data)
 
@@ -64,9 +71,6 @@ def parse_svg_path(
                 raise RuntimeError("Path starts with coordinates.")
             cmd = last_cmd
 
-        #
-        # Move
-        #
         if cmd == "M":
 
             x = tokens[i]
@@ -76,11 +80,9 @@ def parse_svg_path(
             current = Point(x, y)
             contour_start = Point(x, y)
 
+            # Additional coordinate pairs after M become implicit L
             last_cmd = "L"
 
-        #
-        # Line
-        #
         elif cmd == "L":
 
             while i < len(tokens) and not isinstance(tokens[i], str):
@@ -99,9 +101,6 @@ def parse_svg_path(
 
                 current = end
 
-        #
-        # Horizontal
-        #
         elif cmd == "H":
 
             while i < len(tokens) and not isinstance(tokens[i], str):
@@ -120,9 +119,6 @@ def parse_svg_path(
 
                 current = end
 
-        #
-        # Vertical
-        #
         elif cmd == "V":
 
             while i < len(tokens) and not isinstance(tokens[i], str):
@@ -141,9 +137,6 @@ def parse_svg_path(
 
                 current = end
 
-        #
-        # Cubic Bézier
-        #
         elif cmd == "C":
 
             while i < len(tokens) and not isinstance(tokens[i], str):
@@ -166,34 +159,10 @@ def parse_svg_path(
 
                 current = end
 
-        #
-        # Close path
-        #
         elif cmd == "Z":
 
-            #
-            # SVG semantics:
-            # Z draws a segment back to the beginning
-            # of the current contour.
-            #
-            if (
-                contour_start is not None
-                and current is not None
-                and (
-                    current.x != contour_start.x
-                    or current.y != contour_start.y
-                )
-            ):
-                path.add(
-                    Line(
-                        current,
-                        contour_start,
-                        stroke_color,
-                        stroke_width,
-                    )
-                )
-
-            path.close()
+            if not path.is_empty:
+                path.close()
 
             current = contour_start
             contour_start = None
@@ -204,4 +173,34 @@ def parse_svg_path(
                 f"Unsupported SVG command: {cmd}"
             )
 
+    # Compatibility with existing code.
     return [path]
+
+
+if __name__ == "__main__":
+
+    sample = (
+        "M 0 0 "
+        "L 10 0 "
+        "L 10 10 "
+        "Z "
+        "M 3 3 "
+        "L 7 3 "
+        "L 7 7 "
+        "Z"
+    )
+
+    paths = parse_svg_path(sample)
+
+    print("SVG PATH PARSER VERSION 2.0")
+    print("Returned paths:", len(paths))
+    print(paths[0])
+    print("Segments:", len(paths[0].objects))
+
+
+
+
+
+
+
+
