@@ -16,6 +16,8 @@ text representation so the correct importer can be chosen.
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+DEBUG = False
 import xml.etree.ElementTree as ET
 
 
@@ -185,7 +187,10 @@ def analyze_svg(svg_filename) -> SvgAnalysis:
 # Report
 # ============================================================
 
-def print_svg_analysis(info: SvgAnalysis):
+def print_svg_analysis(info: SvgAnalysis, enabled: bool = DEBUG):
+
+    if not enabled:
+        return
 
     print()
     print("=" * 60)
@@ -223,3 +228,5 @@ def print_svg_analysis(info: SvgAnalysis):
     print("-------------------------------------")
 
     print(f"Mode               : {info.mode}")
+
+

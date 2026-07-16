@@ -1,3 +1,0 @@
-Paths       : 391
-Objects     : 3819
-Unsupported : {}

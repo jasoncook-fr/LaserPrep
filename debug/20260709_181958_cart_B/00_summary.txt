@@ -1,9 +1,0 @@
-==================================================
-LaserPrep Debug Session
-==================================================
-Project : cart_B
-Started : 2026-07-09 18:19:58.868147
-
-Missing file : /home/jaz/Nextcloud/Dev/ENSAM/JASON/LaserPrep/TEST_FILES/quarantine/cart_B/Cartouche_A.geometry_raw.svg
-
-Finished : 2026-07-09 18:19:59.153085

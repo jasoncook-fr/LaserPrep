@@ -1,3 +1,0 @@
-Paths       : 293
-Objects     : 4898
-Unsupported : {'qu': 1}

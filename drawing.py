@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import List, Tuple, Union
 
+DEBUG = False
+
 @dataclass
 class Point:
     x: float
@@ -228,7 +230,9 @@ class Drawing:
                 self._rotate_point_90(obj.control2, center)
                 self._rotate_point_90(obj.end, center)
 
-    def summary(self) -> None:
+    def summary(self, enabled: bool = DEBUG) -> None:
+        if not enabled:
+            return
         print("-------------------------------------")
         print(self.name)
         print("-------------------------------------")
@@ -246,6 +250,8 @@ class Drawing:
         print(f"   Width  : {self.drawing_width:.2f}")
         print(f"   Height : {self.drawing_height:.2f}")
         print()
+
+
 
 
 

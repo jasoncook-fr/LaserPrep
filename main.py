@@ -114,12 +114,10 @@ def main() -> None:
             folder / f"{pdf.stem}.geometry_raw.svg",
             "02_geometry.svg"
         )
-
         import_text(
             drawing,
             pdf,
         )
-
         diag.export_svg(
             drawing,
             f"{pdf.stem}.merged_before_move.svg",
