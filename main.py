@@ -7,6 +7,7 @@ Version 0.5
 """
 from geometry_chains import analyse as analyse_chains
 from geometry_statistics import analyse as geometry_statistics
+from topology import build_paths
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog
@@ -112,6 +113,9 @@ def process_project(folder: Path) -> None:
             drawing,
             pdf,
         )
+
+        build_paths(drawing)
+
         diag.export_svg(
             drawing,
             f"{pdf.stem}.merged_before_move.svg",
@@ -245,6 +249,7 @@ def process_project(folder: Path) -> None:
 
         removed_zero = remove_zero_length_lines(drawing)
         removed_duplicates = remove_duplicate_lines(drawing)
+        build_paths(drawing)
 
         print("Cleanup")
         print("-------------------------------------")

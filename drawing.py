@@ -52,6 +52,14 @@ class Path:
     def add(self, segment: PathSegment) -> None:
         self.segments.append(segment)
 
+    @property
+    def is_empty(self) -> bool:
+        return len(self.segments) == 0
+
+
+    def __iter__(self):
+        return iter(self.segments)
+
 @dataclass
 class Polyline:
 
