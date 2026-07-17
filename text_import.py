@@ -43,7 +43,7 @@ from debug_svg_writer import write_imported_paths
 
 def _dbg(*args, **kwargs):
     if DEBUG:
-        _dbg(*args, **kwargs)
+        print(*args, **kwargs)
 
 
 # ============================================================
@@ -58,7 +58,7 @@ def import_text(drawing, pdf_file):
 
     pdf_file = Path(pdf_file)
 
-    svg_file = pdf_file.with_suffix(".text.svg")
+    svg_file = diag.temp_folder / f"{pdf_file.stem}.text.svg"
 
     # --------------------------------------------------------
     # PDF -> SVG
@@ -216,6 +216,8 @@ def import_text(drawing, pdf_file):
     _dbg(f"Imported objects : {object_count}")
 
     _dbg()
+
+
 
 
 

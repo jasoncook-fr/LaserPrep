@@ -23,6 +23,7 @@ from geometry_cleanup import (
     remove_duplicate_lines,
 )
 from config import (
+    BATCH_ROOT,
     DISPLAY_OFFSET_X_MM,
     DISPLAY_OFFSET_Y_MM,
     LARGE_USABLE_WIDTH_MM,
@@ -60,18 +61,11 @@ def choose_folder() -> Path | None:
 # Main
 # ============================================================
 
-def main() -> None:
-
-    folder = choose_folder()
-
-    if folder is None:
-        print("No folder selected.")
-        return
-
+def process_project(folder: Path) -> None:
     pdf_files = sorted(folder.glob("*.pdf"))
 
     if not pdf_files:
-        print("No PDF files found.")
+        print(f"No PDF files found in {folder}")
         return
 
     project = Project(folder.name)
@@ -111,7 +105,7 @@ def main() -> None:
             f"{pdf.stem}.geometry_raw.svg",
         )
         debug.save_svg(
-            folder / f"{pdf.stem}.geometry_raw.svg",
+            diag.debug_folder / f"{pdf.stem}.geometry_raw.svg",
             "02_geometry.svg"
         )
         import_text(
@@ -306,7 +300,8 @@ def main() -> None:
 
     print("Writing SVG...")
     write_svg(project, output_file)
-    debug.save_svg(output_file, "05_final.svg")
+    diag.export_file(output_file)
+    debug.save_svg(diag.debug_folder / output_file.name, "05_final.svg")
 
     print()
     print("=" * 60)
@@ -319,6 +314,62 @@ def main() -> None:
     diag.end()
     project.summary()
 
+def main() -> None:
+
+    print("=" * 44)
+    print("LaserPrep")
+    print("=" * 44)
+    print()
+    print("1 - Testing Mode")
+    print("    Choose one folder and process only PDFs in that folder.")
+    print()
+    print("2 - Batch Mode")
+    print("    Process every project under BATCH_ROOT.")
+    print()
+    print("Q - Quit")
+    print()
+
+    choice = input("Choice: ").strip().lower()
+
+    if choice == "q":
+        return
+
+    if choice == "1":
+        folder = choose_folder()
+        if folder is None:
+            print("No folder selected.")
+            return
+        process_project(folder)
+        return
+
+    if choice == "2":
+        root = Path(BATCH_ROOT)
+
+        if not root.exists():
+            print(f"Batch root does not exist: {root}")
+            return
+
+        projects = sorted(
+            p for p in root.rglob("*")
+            if p.is_dir() and any(p.glob("*.pdf"))
+        )
+
+        if not projects:
+            print("No projects found.")
+            return
+
+        print(f"Found {len(projects)} projects.")
+
+        for i, folder in enumerate(projects, start=1):
+            print("=" * 60)
+            print(f"Project {i} / {len(projects)}")
+            print(folder)
+            print("=" * 60)
+            process_project(folder)
+        return
+
+    print("Invalid choice.")
+
 
 # ============================================================
 # Entry Point
@@ -326,6 +377,12 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
 
 
 

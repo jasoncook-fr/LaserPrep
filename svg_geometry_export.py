@@ -33,6 +33,7 @@ def export_geometry_svg(page, output_file):
 
     svg = page.get_svg_image()
 
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.write_text(svg, encoding="utf-8")
 
     return output_file

@@ -1,5 +1,5 @@
 """
-text_to_paths.py
+poppler.py
 
 LaserPrep
 
@@ -8,7 +8,7 @@ Converts PDF text into SVG paths using Poppler (pdftocairo).
 This module does NOT parse the SVG.
 It only creates it.
 
-Version 0.1
+Version 1.1
 """
 
 from pathlib import Path
@@ -116,8 +116,8 @@ def text_to_paths(pdf_file: str | Path,
             "SVG file was not created."
         )
 
-    print("✓ Conversion successful")
-    print()
+    #print("✓ Conversion successful")
+    #print()
 
     return svg_file
 

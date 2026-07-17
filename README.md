@@ -1,141 +1,153 @@
 # LaserPrep
 
-LaserPrep prepares student PDF files for laser cutting by converting them into a single, clean SVG suitable for inspection and production in Inkscape.
+LaserPrep is a Python application that prepares student PDF drawings for laser cutting.
 
-The project is designed to accept a wide variety of PDF files produced by CAD, vector illustration, and architectural software while automatically repairing many common problems before export.
+It imports PDF files from a project folder, automatically repairs common problems, and produces a single SVG ready for inspection and production in Inkscape.
 
----
-
-## Features
-
-* Import vector geometry from PDF
-* Automatic page rotation when beneficial
-* Geometry alignment
-* Colour normalization
-* Stroke width normalization
-* Machine size validation
-* Anchor point counting
-* Duplicate geometry detection
-* Hidden geometry detection
-* Raster image detection
-* Live text detection
-* Automatic text outline extraction using Poppler
-* Watermark detection and removal
-* Artifact detection
-* SVG export for Inkscape
+The goal is to make laser cutting more reliable while reducing manual preparation time for workshop staff.
 
 ---
 
-## Processing Pipeline
+# Version
 
-```text
-PDF
- │
- ├── Geometry Import
- │
- ├── Text Extraction
- │      │
- │      ├── Poppler
- │      ├── SVG Analysis
- │      ├── SVG Text Import
- │      ├── Text Group Analysis
- │      ├── Artifact Detection
- │      └── Watermark Removal
- │
- ├── Geometry Cleanup
- │
- ├── Colour Normalization
- │
- ├── Validation
- │
- └── SVG Export
+Current release: **v1.0**
+
+This release marks the completion of the first stable processing pipeline.
+
+---
+
+# Features
+
+- Batch processing of project folders
+- Automatic PDF import
+- Vector geometry extraction
+- Text outline extraction
+- Glyph-reference SVG support
+- Watermark detection and removal
+- Artifact detection
+- Geometry cleanup
+- Duplicate line removal
+- Zero-length geometry removal
+- Colour normalization
+- Geometry statistics
+- Processing diagnostics
+- SVG export for Inkscape
+
+---
+
+# Processing Pipeline
+
+```
+Project Folder
+       │
+       ▼
+Read every PDF
+       │
+       ▼
+Import vector geometry
+       │
+       ▼
+Extract text outlines
+       │
+       ▼
+Merge geometry
+       │
+       ▼
+Remove watermark artifacts
+       │
+       ▼
+Geometry cleanup
+       │
+       ▼
+Colour normalization
+       │
+       ▼
+Validation
+       │
+       ▼
+Export project SVG
 ```
 
 ---
 
-## Project Structure
+# Project Structure
 
 ```
 main.py
-│
+
+Core
 ├── pdf_reader.py
-├── text_import.py
-├── geometry_cleanup.py
-├── colour_normalization.py
-├── svg_writer.py
-│
+├── project.py
 ├── drawing.py
+├── svg_writer.py
+
+Geometry
+├── geometry_cleanup.py
+├── geometry_statistics.py
+├── geometry_chains.py
 ├── vector_path.py
 ├── svg_path_parser.py
 ├── svg_transform.py
-│
+
+Text
+├── text_import.py
+├── text_group_analysis.py
 ├── artifact_detector.py
 ├── watermark_detector.py
 ├── watermark_remover.py
-├── text_group_analysis.py
-│
-└── diagnostics.py
+
+Validation
+├── colour_normalization.py
+├── color_analysis.py
+├── diagnostics.py
+
+Debug
+├── debug_manager.py
+
+Configuration
+├── config.py
 ```
 
-Development and investigation scripts are located in the `tools/` directory and are not required for normal operation.
+---
+
+# Requirements
+
+- Python 3.11+
+- PyMuPDF
+- Poppler (`pdftocairo`)
+- Inkscape
 
 ---
 
-## Workflow
+# Typical Workflow
 
-1. Read PDF
-2. Import vector geometry
-3. Extract text outlines
-4. Remove watermark artifacts
-5. Merge text and geometry
-6. Clean geometry
-7. Validate drawing
-8. Export SVG
-
----
-
-## Output
-
-The generated SVG is intended to be opened in Inkscape, where each drawing can be visually inspected before being sent to the laser cutter.
+1. Launch LaserPrep.
+2. Select the folder containing student PDF files.
+3. LaserPrep imports every PDF.
+4. Geometry and text are repaired automatically.
+5. A single SVG is generated.
+6. Open the SVG in Inkscape.
+7. Inspect each layer.
+8. Send to the laser cutter.
 
 ---
 
-## Design Philosophy
+# Current Status
 
-LaserPrep intentionally performs only a limited number of automatic repairs.
+Version 1.0 provides a complete production pipeline for preparing laser-cutting jobs.
 
-Whenever possible, original geometry is preserved. Automatic modifications are limited to operations that are deterministic and safe, such as:
+Future development will focus primarily on:
 
-* rotation
-* alignment
-* stroke normalization
-* colour normalization
-* text outline extraction
-* watermark removal
-* duplicate removal
+- internal architecture
+- code cleanup
+- performance improvements
+- additional diagnostics
+- improved maintainability
 
-This keeps the exported SVG predictable and suitable for manufacturing.
+rather than major changes to the processing pipeline.
 
 ---
 
-## Requirements
+# License
 
-* Python 3.11+
-* PyMuPDF
-* Poppler (`pdftocairo`)
-* Inkscape (for final inspection)
-
----
-
-## Current Status
-
-The PDF import pipeline is complete and supports:
-
-* vector geometry
-* direct SVG paths
-* glyph-reference SVGs
-* automatic text outline extraction
-* artifact and watermark removal
-* SVG export
-
-
+MIT License

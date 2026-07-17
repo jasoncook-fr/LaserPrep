@@ -3,6 +3,10 @@
 # Version : 2.2B
 # Milestone : 1.1 - Diagnostics Infrastructure
 # ============================================================
+from pathlib import Path
+
+# declare batch processing folder
+BATCH_ROOT = Path("/home/jaz/Nextcloud/Dev/ENSAM/TMP/TEST_FILES")
 
 # -------------------------------------------------------------
 # Debug

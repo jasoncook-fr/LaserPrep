@@ -123,6 +123,20 @@ def import_svg_geometry(svg_filename):
         if not d:
             continue
 
+        # Skip completely invisible SVG paths.
+        stroke_attr = node.attrib.get("stroke", "").strip().lower()
+        fill_attr = node.attrib.get("fill", "").strip().lower()
+
+        stroke_opacity = node.attrib.get("stroke-opacity", "1").strip()
+        fill_opacity = node.attrib.get("fill-opacity", "1").strip()
+
+        if (
+            (stroke_attr in ("", "none") or stroke_opacity == "0")
+            and
+            (fill_attr in ("", "none") or fill_opacity == "0")
+        ):
+            continue
+
         drawing_id += 1
 
         stroke = _parse_colour(node.attrib.get("stroke"))

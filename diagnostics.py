@@ -43,7 +43,12 @@ class Diagnostics:
 
         self.project = ""
         self.project_folder = None
+
+        self.workspace_folder = None
         self.debug_folder = None
+        self.temp_folder = None
+        self.reports_folder = None
+        self.cache_folder = None
 
         self.report_lines = []
 
@@ -59,8 +64,20 @@ class Diagnostics:
         self.project = project
         self.project_folder = Path(project_folder)
 
-        self.debug_folder = self.project_folder / "debug"
-        self.debug_folder.mkdir(parents=True, exist_ok=True)
+        self.workspace_folder = self.project_folder / ".laserprep"
+        self.debug_folder = self.workspace_folder / "debug"
+        self.temp_folder = self.workspace_folder / "temp"
+        self.reports_folder = self.workspace_folder / "reports"
+        self.cache_folder = self.workspace_folder / "cache"
+
+        for folder in (
+            self.workspace_folder,
+            self.debug_folder,
+            self.temp_folder,
+            self.reports_folder,
+            self.cache_folder,
+        ):
+            folder.mkdir(parents=True, exist_ok=True)
 
         self.report_lines = []
 
@@ -73,7 +90,7 @@ class Diagnostics:
         if not self.enabled:
             return
 
-        report_file = self.debug_folder / "report.txt"
+        report_file = self.project_folder / "LaserPrep_Report.txt"
 
         report_file.write_text(
             "\n".join(self.report_lines),
@@ -221,3 +238,5 @@ class Diagnostics:
 # ============================================================
 
 diag = Diagnostics()
+
+

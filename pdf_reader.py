@@ -12,6 +12,7 @@ from drawing import Drawing
 
 from svg_geometry_export import export_geometry_svg
 from svg_geometry_import import import_svg_geometry
+from diagnostics import diag
 
 PT_TO_MM = 25.4 / 72.0
 
@@ -29,7 +30,7 @@ def read_pdf(filename: Path) -> Drawing:
     # Export page geometry as SVG using MuPDF
     svg_file = export_geometry_svg(
         page,
-        filename.with_suffix(".geometry.svg")
+        output_file=diag.debug_folder / f"{filename.stem}.geometry.svg",
     )
 
     # Import geometry back into LaserPrep
