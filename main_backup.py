@@ -36,7 +36,6 @@ from config import (
 from debug_manager import DebugManager
 from config import DEBUG
 from report import Report
-from report_dev import DeveloperReport
 
 # ============================================================
 # Folder Selection
@@ -74,7 +73,6 @@ def process_project(folder: Path) -> None:
 
     project = Project(folder.name)
     report = Report()
-    dev_report = DeveloperReport()
     debug = DebugManager(DEBUG)
     debug.start_run(project.name)
     diag.begin(project, folder)
@@ -91,9 +89,6 @@ def process_project(folder: Path) -> None:
 
     for pdf in pdf_files:
 
-        report.begin_file(pdf.name)
-        dev_report.begin_file(pdf.name)
-
         print(f"Reading {pdf.name}...")
 
         drawing = read_pdf(pdf)
@@ -101,7 +96,6 @@ def process_project(folder: Path) -> None:
         complexity = analyse_complexity(drawing)
 
         report.complexity(complexity)
-        dev_report.complexity(complexity)
 
         if complexity.should_abort:
             continue
@@ -186,24 +180,8 @@ def process_project(folder: Path) -> None:
             ),
         )
 
-        dev_report.validation(
-            drawing,
-            rotated,
-            min(normal_overflow, rotated_overflow),
-            drawing.fits(
-                LARGE_USABLE_WIDTH_MM,
-                LARGE_USABLE_HEIGHT_MM,
-            ),
-            drawing.fits(
-                SMALL_USABLE_WIDTH_MM,
-                SMALL_USABLE_HEIGHT_MM,
-            ),
-        )
-
         report.geometry(geometry)
-        dev_report.geometry(geometry)
         report.colours(colors)
-        dev_report.colours(colors)
         # ----------------------------------------------------
         # Apply modifications after analysis/reporting
         # ----------------------------------------------------
@@ -224,21 +202,13 @@ def process_project(folder: Path) -> None:
             normalization.corrected,
         )
 
-        dev_report.cleanup(
-            removed_zero,
-            removed_duplicates,
-            normalization.corrected,
-        )
-
         stats = geometry_statistics(drawing)
 
         report.statistics(stats)
-        dev_report.statistics(stats)
 
         chains = analyse_chains(drawing)
 
         report.chains(chains)
-        dev_report.chains(chains)
 
     # ========================================================
     # Export SVG
@@ -251,18 +221,8 @@ def process_project(folder: Path) -> None:
     diag.export_file(output_file)
     debug.save_svg(diag.debug_folder / output_file.name, "05_final.svg")
 
-    reports_folder = folder / "reports"
-    reports_folder.mkdir(exist_ok=True)
-
-    report.save(
-        reports_folder / f"{project.name}.base_report.txt",
-        project.name,
-    )
-
-    dev_report.save(
-        reports_folder / f"{project.name}.extensive_report.txt",
-        project.name,
-    )
+    print()
+    report.save(folder / f"{project.name}.report.txt", project.name)
 
     print("=" * 60)
     print("Finished")
@@ -338,8 +298,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
 
 
 

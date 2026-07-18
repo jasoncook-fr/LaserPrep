@@ -1,160 +1,128 @@
 """
 report.py
-
-LaserPrep operator report.
-
-Version 1.0
 """
-
 from pathlib import Path
+from datetime import datetime
+
+class Report:
+    def __init__(self):
+        self.project = ""
+        self.generated = datetime.now()
+        self.files = []
+        self.current = None
+
+    def _ensure(self):
+        if self.current is None:
+            self.current = {
+                "name":"Unknown",
+                "objects":0,
+                "status":"PASS",
+                "warnings":[],
+                "alerts":[],
+                "repairs":[]
+            }
+
+    def begin_file(self, filename):
+        if self.current:
+            self.files.append(self.current)
+        self.current = {
+            "name": filename,
+            "objects":0,
+            "status":"PASS",
+            "warnings":[],
+            "alerts":[],
+            "repairs":[]
+        }
+
+    def validation(self,drawing,rotated,overflow,large_ok,small_ok):
+        self._ensure()
+        if not large_ok:
+            self.current["status"]="REJECTED"
+            self.current["alerts"].append("Does not fit on large laser.")
+        elif not small_ok:
+            if self.current["status"]=="PASS":
+                self.current["status"]="WARNING"
+            self.current["warnings"].append(f"Does not fit on small laser ({overflow:.2f} mm overflow).")
+
+    def complexity(self,c):
+        self._ensure()
+        self.current["objects"]=c.object_count
+        if c.should_abort:
+            self.current["status"]="REJECTED"
+            self.current["alerts"].append("Complexity exceeds supported limit.")
+
+    def geometry(self,g):
+        self._ensure()
+        if getattr(g,"tiny_lines",0):
+            self.current["warnings"].append(f"{g.tiny_lines} tiny segments detected.")
+
+    def colours(self,colors):
+        pass
+
+    def cleanup(self,zero,dup,col):
+        self._ensure()
+        if zero:
+            self.current["repairs"].append(f"Removed {zero} zero-length lines")
+        if dup:
+            self.current["repairs"].append(f"Removed {dup} duplicate lines")
+        if col:
+            self.current["repairs"].append(f"Corrected {col} colours")
+
+    def statistics(self,s):
+        pass
+
+    def chains(self,c):
+        pass
+
+    def save(self,path,project):
+        if self.current:
+            self.files.append(self.current)
+            self.current=None
+
+        total_objects=sum(f["objects"] for f in self.files)
+        rejected=sum(f["status"]=="REJECTED" for f in self.files)
+        warnings=sum(f["status"]=="WARNING" for f in self.files)
+        passed=sum(f["status"]=="PASS" for f in self.files)
+
+        out=[]
+        out.append("="*60)
+        out.append("LASERPREP OPERATOR REPORT")
+        out.append("="*60)
+        out.append(f"Project        : {project}")
+        out.append(f"Generated      : {self.generated:%Y-%m-%d %H:%M:%S}")
+        out.append(f"Files          : {len(self.files)}")
+        out.append(f"Vector objects : {total_objects}")
+        out.append("")
+        out.append("SUMMARY")
+        out.append("-"*60)
+        out.append(f"Accepted : {passed}")
+        out.append(f"Warnings : {warnings}")
+        out.append(f"Rejected : {rejected}")
+
+        alerts=[(f["name"],a) for f in self.files for a in f["alerts"]]
+        warns=[(f["name"],w) for f in self.files for w in f["warnings"]]
+        repairs=[(f["name"],r) for f in self.files for r in f["repairs"]]
+
+        if alerts:
+            out.extend(["","ALERTS","-"*60])
+            for n,a in alerts:
+                out.append(f"{n}: {a}")
+
+        if warns:
+            out.extend(["","WARNINGS","-"*60])
+            for n,w in warns:
+                out.append(f"{n}: {w}")
+
+        if repairs:
+            out.extend(["","AUTOMATIC REPAIRS","-"*60])
+            for n,r in repairs:
+                out.append(f"{n}: {r}")
+
+        out.extend(["","FILES","-"*60])
+        for f in self.files:
+            icon={"PASS":"✓","WARNING":"⚠","REJECTED":"✗"}[f["status"]]
+            out.append(f"{icon} {f['name']} ({f['objects']} objects)")
+
+        Path(path).write_text("\n".join(out),encoding="utf-8")
 
 
-def _yes_no(value: bool) -> str:
-    return "PASS" if value else "FAIL"
-
-
-def write_report(report, filename: str) -> None:
-    """
-    Write the LaserPrep operator report.
-
-    Parameters
-    ----------
-    report
-        GeometryReport (or LaserPrepReport in the future).
-
-    filename
-        Output report filename.
-    """
-
-    lines = []
-
-    lines.append("LaserPrep Report")
-    lines.append("=" * 60)
-    lines.append("")
-
-    #
-    # GENERAL INFORMATION
-    #
-
-    lines.append("GENERAL INFORMATION")
-    lines.append("-" * 60)
-
-    if hasattr(report, "input_file"):
-        lines.append(f"Input file           : {report.input_file}")
-
-    if hasattr(report, "page_width_mm"):
-        lines.append(
-            f"Page size            : "
-            f"{report.page_width_mm:.2f} × "
-            f"{report.page_height_mm:.2f} mm"
-        )
-
-    if hasattr(report, "machine_width_mm"):
-        lines.append(
-            f"Laser bed            : "
-            f"{report.machine_width_mm:.0f} × "
-            f"{report.machine_height_mm:.0f} mm"
-        )
-
-    if hasattr(report, "machine_fits"):
-        lines.append(
-            f"Machine size check   : "
-            f"{_yes_no(report.machine_fits)}"
-        )
-
-    if hasattr(report, "object_count"):
-        lines.append(
-            f"Objects              : {report.object_count}"
-        )
-
-    if hasattr(report, "path_count"):
-        lines.append(
-            f"Paths                : {report.path_count}"
-        )
-
-    if hasattr(report, "bezier_count"):
-        lines.append(
-            f"Bezier curves        : {report.bezier_count}"
-        )
-
-    if hasattr(report, "raster_images"):
-        lines.append(
-            f"Raster images        : {report.raster_images}"
-        )
-
-    if hasattr(report, "live_text"):
-        lines.append(
-            f"Live text            : {report.live_text}"
-        )
-
-    lines.append("")
-
-    #
-    # CLEANUP
-    #
-
-    lines.append("CLEANUP")
-    lines.append("-" * 60)
-
-    if hasattr(report, "removed_zero_length"):
-        lines.append(
-            f"Removed zero-length  : {report.removed_zero_length}"
-        )
-
-    if hasattr(report, "removed_duplicates"):
-        lines.append(
-            f"Removed duplicates   : {report.removed_duplicates}"
-        )
-
-    if hasattr(report, "colours_corrected"):
-        lines.append(
-            f"Colours corrected    : {report.colours_corrected}"
-        )
-
-    lines.append("")
-
-    #
-    # ATTENTION
-    #
-
-    attention = []
-
-    if getattr(report, "near_overlap_candidates", 0):
-        attention.append(
-            f"Near-overlapping geometry "
-            f"({report.near_overlap_candidates} candidates)"
-        )
-
-    if getattr(report, "machine_fits", True) is False:
-        attention.append(
-            "Drawing exceeds laser machine dimensions."
-        )
-
-    if getattr(report, "live_text", 0):
-        attention.append(
-            "Live text remains in the drawing."
-        )
-
-    if getattr(report, "raster_images", 0):
-        attention.append(
-            "Raster images detected."
-        )
-
-    lines.append("ATTENTION")
-    lines.append("-" * 60)
-
-    if attention:
-
-        for item in attention:
-            lines.append(f"- {item}")
-
-    else:
-
-        lines.append("No operator attention required.")
-
-    lines.append("")
-
-    Path(filename).write_text(
-        "\n".join(lines),
-        encoding="utf-8",
-    )

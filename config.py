@@ -63,6 +63,20 @@ LASER_STROKE_WIDTH_MM = 0.01
 FIT_TOLERANCE_MM = 1.0
 COLOUR_TOLERANCE = 25.0
 
+# ============================================================
+# Complexity Analysis
+# ============================================================
+
+# Number of imported vector objects before warning the operator.
+COMPLEXITY_WARNING_OBJECTS = 20000
+
+# Number of imported vector objects considered unusually high.
+COMPLEXITY_HIGH_OBJECTS = 100000
+
+# Maximum number of imported vector objects LaserPrep will attempt
+# to process. Files above this limit are rejected.
+COMPLEXITY_ABORT_OBJECTS = 250000
+
 
 # ============================================================
 # DIAGNOSTICS
