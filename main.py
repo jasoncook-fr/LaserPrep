@@ -5,6 +5,7 @@ LaserPrep application entry point.
 
 Version 0.5
 """
+from batch_alerts import BatchAlerts
 from complexity import analyse_complexity
 from geometry_chains import analyse as analyse_chains
 from geometry_statistics import analyse as geometry_statistics
@@ -65,7 +66,10 @@ def choose_folder() -> Path | None:
 # Main
 # ============================================================
 
-def process_project(folder: Path) -> None:
+def process_project(
+    folder: Path,
+    alerts: BatchAlerts | None = None,
+) -> None:
     pdf_files = sorted(folder.glob("*.pdf"))
 
     if not pdf_files:
@@ -104,6 +108,14 @@ def process_project(folder: Path) -> None:
         dev_report.complexity(complexity)
 
         if complexity.should_abort:
+
+            if alerts is not None:
+                alerts.abort(
+                    project.name,
+                    pdf.name,
+                    "Drawing complexity exceeds the allowed limit."
+                )
+
             continue
 
         stats = drawing.pdf_statistics
@@ -196,6 +208,21 @@ def process_project(folder: Path) -> None:
 
             print(
                 f"ABORT: {pdf.name} exceeds the maximum machine size."
+            )
+
+            message = (
+                f"Drawing size : "
+                f"{drawing.drawing_width:.2f} × "
+                f"{drawing.drawing_height:.2f} mm\n"
+                f"Maximum size : "
+                f"{LARGE_USABLE_WIDTH_MM:.2f} × "
+                f"{LARGE_USABLE_HEIGHT_MM:.2f} mm"
+            )
+
+            alerts.abort(
+                project.name,
+                pdf.name,
+                message,
             )
 
             continue
@@ -327,12 +354,19 @@ def main() -> None:
 
         print(f"Found {len(projects)} projects.")
 
+        alerts = BatchAlerts()
+
         for i, folder in enumerate(projects, start=1):
             print("=" * 60)
             print(f"Project {i} / {len(projects)}")
             print(folder)
             print("=" * 60)
-            process_project(folder)
+            process_project(
+                folder,
+                alerts,
+            )
+
+        alerts.save(root)
         return
 
     print("Invalid choice.")
@@ -344,6 +378,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
