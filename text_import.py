@@ -207,15 +207,18 @@ def import_text(drawing, pdf_file):
 
     for path in text_paths:
 
+        # Imported text is already a complete SVG path.
+        # Keep it separate from topology reconstruction.
         drawing.paths.append(path)
 
-        for obj in path:
-            drawing.add(obj)
-            object_count += 1
+        # Do NOT add text primitives to drawing.objects.
+        # This prevents topology from rebuilding stroked copies.
 
     _dbg(f"Imported objects : {object_count}")
 
     _dbg()
+
+
 
 
 

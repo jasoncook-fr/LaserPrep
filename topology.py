@@ -177,7 +177,16 @@ def build_paths(drawing: Drawing) -> None:
     drawing.objects completely untouched.
     """
 
+    # Preserve imported text paths. Topology only rebuilds geometry.
+    preserved_text_paths = [
+        p for p in drawing.paths
+        if getattr(p, "is_text", False)
+    ]
+
     drawing.paths.clear()
+
+    # Restore the original text paths immediately.
+    drawing.paths.extend(preserved_text_paths)
 
     lines = []
     beziers = []
@@ -287,6 +296,8 @@ def build_paths(drawing: Drawing) -> None:
     print("-------------------------------------")
     print(f"Objects : {len(drawing.objects)}")
     print(f"Paths   : {len(drawing.paths)}")
+
+
 
 
 

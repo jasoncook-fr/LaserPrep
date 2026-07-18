@@ -131,11 +131,23 @@ class Drawing:
         def move(p: Point):
             p.x += dx
             p.y += dy
+
+        # Move geometry objects.
         for obj in self.objects:
             if isinstance(obj, Line):
                 move(obj.start); move(obj.end)
             elif isinstance(obj, Bezier):
                 move(obj.start); move(obj.control1); move(obj.control2); move(obj.end)
+
+        # Move imported text paths that are no longer represented in objects.
+        for path in self.paths:
+            if not getattr(path, "is_text", False):
+                continue
+            for seg in path:
+                if isinstance(seg, Line):
+                    move(seg.start); move(seg.end)
+                elif isinstance(seg, Bezier):
+                    move(seg.start); move(seg.control1); move(seg.control2); move(seg.end)
 
 
     def move_to(self, x: float, y: float) -> None:
@@ -225,18 +237,27 @@ class Drawing:
         center = self.center
 
         for obj in self.objects:
-
             if isinstance(obj, Line):
-
                 self._rotate_point_90(obj.start, center)
                 self._rotate_point_90(obj.end, center)
-
             elif isinstance(obj, Bezier):
-
                 self._rotate_point_90(obj.start, center)
                 self._rotate_point_90(obj.control1, center)
                 self._rotate_point_90(obj.control2, center)
                 self._rotate_point_90(obj.end, center)
+
+        for path in self.paths:
+            if not getattr(path, "is_text", False):
+                continue
+            for seg in path:
+                if isinstance(seg, Line):
+                    self._rotate_point_90(seg.start, center)
+                    self._rotate_point_90(seg.end, center)
+                elif isinstance(seg, Bezier):
+                    self._rotate_point_90(seg.start, center)
+                    self._rotate_point_90(seg.control1, center)
+                    self._rotate_point_90(seg.control2, center)
+                    self._rotate_point_90(seg.end, center)
 
     def summary(self, enabled: bool = DEBUG) -> None:
         if not enabled:
@@ -258,6 +279,8 @@ class Drawing:
         print(f"   Width  : {self.drawing_width:.2f}")
         print(f"   Height : {self.drawing_height:.2f}")
         print()
+
+
 
 
 
