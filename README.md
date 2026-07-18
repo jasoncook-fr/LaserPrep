@@ -2,17 +2,17 @@
 
 LaserPrep is a Python application that prepares student PDF drawings for laser cutting.
 
-It imports PDF files from a project folder, automatically repairs common problems, and produces a single SVG ready for inspection and production in Inkscape.
+It imports one or more PDF files from a project folder, automatically detects and repairs common issues, validates the result, and produces a single SVG ready for inspection and production in Inkscape.
 
-The goal is to make laser cutting more reliable while reducing manual preparation time for workshop staff.
+The goal is to reduce manual preparation time while providing a reliable and repeatable workflow for digital fabrication laboratories and educational workshops.
 
 ---
 
 # Version
 
-Current release: **v1.0**
+**Current release:** v1.1
 
-This release marks the completion of the first stable processing pipeline.
+This release marks the first stable production version of the complete processing pipeline.
 
 ---
 
@@ -22,15 +22,15 @@ This release marks the completion of the first stable processing pipeline.
 - Automatic PDF import
 - Vector geometry extraction
 - Text outline extraction
-- Glyph-reference SVG support
 - Watermark detection and removal
 - Artifact detection
-- Geometry cleanup
+- Geometry cleanup and optimization
 - Duplicate line removal
 - Zero-length geometry removal
 - Colour normalization
-- Geometry statistics
-- Processing diagnostics
+- Machine-size validation
+- Complexity analysis
+- Operator and developer reports
 - SVG export for Inkscape
 
 ---
@@ -63,6 +63,9 @@ Colour normalization
        │
        ▼
 Validation
+       │
+       ▼
+Generate reports
        │
        ▼
 Export project SVG
@@ -99,9 +102,15 @@ Text
 Validation
 ├── colour_normalization.py
 ├── color_analysis.py
-├── diagnostics.py
+├── complexity.py
 
-Debug
+Reports
+├── report.py
+├── report_dev.py
+├── batch_alerts.py
+
+Diagnostics
+├── diagnostics.py
 ├── debug_manager.py
 
 Configuration
@@ -122,29 +131,32 @@ Configuration
 # Typical Workflow
 
 1. Launch LaserPrep.
-2. Select the folder containing student PDF files.
+2. Select the folder containing one or more student projects.
 3. LaserPrep imports every PDF.
 4. Geometry and text are repaired automatically.
-5. A single SVG is generated.
-6. Open the SVG in Inkscape.
-7. Inspect each layer.
-8. Send to the laser cutter.
+5. Validation is performed.
+6. Reports are generated.
+7. A production-ready SVG is created.
+8. Open the SVG in Inkscape.
+9. Inspect each layer.
+10. Send the job to the laser cutter.
 
 ---
 
 # Current Status
 
-Version 1.0 provides a complete production pipeline for preparing laser-cutting jobs.
+LaserPrep v1.0 is the first production-ready release.
 
-Future development will focus primarily on:
+The complete processing pipeline has been implemented, including PDF import, text outlining, geometry cleanup, colour normalization, validation, reporting, and SVG generation.
 
-- internal architecture
-- code cleanup
+Future development will focus on:
+
 - performance improvements
-- additional diagnostics
-- improved maintainability
+- internal refactoring
+- workflow enhancements
+- maintainability
 
-rather than major changes to the processing pipeline.
+while preserving compatibility with the current production pipeline.
 
 ---
 
