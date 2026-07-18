@@ -3,7 +3,7 @@ geometry_cleanup.py
 
 Geometry analysis tools.
 
-Version 0.6.1
+Version 0.7.0
 """
 
 from drawing import Drawing, Line
@@ -23,6 +23,16 @@ class GeometryReport:
 
         self.shortest_line_mm = None
         self.duplicate_keys = set()
+
+        # Operator report
+        self.object_count = 0
+        self.path_count = 0
+        self.removed_zero_length = 0
+        self.removed_duplicates = 0
+        self.colours_corrected = 0
+
+        # ATTENTION
+        self.near_overlap_candidates = 0
 
 # ============================================================
 # ANALYSIS
@@ -54,6 +64,7 @@ def _line_key(line: Line):
 def analyse(drawing: Drawing) -> GeometryReport:
 
     report = GeometryReport()
+    report.object_count = len(drawing.objects)
 
     seen_lines = set()
 
@@ -173,5 +184,45 @@ def remove_duplicate_lines(drawing: Drawing) -> int:
     drawing.objects = new_objects
 
     return removed
+
+
+
+
+# ============================================================
+# OPERATOR REPORT
+# ============================================================
+
+def build_operator_report(report: GeometryReport) -> list[str]:
+    """Return human-readable report lines for LaserPrep_Report."""
+
+    lines = [
+        "General Information",
+        "-------------------------------------",
+        f"Objects              : {report.object_count}",
+    ]
+
+    if report.path_count:
+        lines.append(f"Paths                : {report.path_count}")
+
+    lines.extend([
+        "",
+        "Cleanup",
+        "-------------------------------------",
+        f"Removed zero-length  : {report.removed_zero_length}",
+        f"Removed duplicates   : {report.removed_duplicates}",
+        f"Colours corrected    : {report.colours_corrected}",
+    ])
+
+    if report.near_overlap_candidates:
+        lines.extend([
+            "",
+            "ATTENTION",
+            "-------------------------------------",
+            f"Potential near-overlapping entities : {report.near_overlap_candidates}",
+            "These are usually drafting artefacts in the source PDF.",
+            "LaserPrep does not automatically merge them.",
+        ])
+
+    return lines
 
 

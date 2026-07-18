@@ -1,10 +1,23 @@
+
 """
 topology.py
 
 Reconstruct topological paths from imported geometry.
 
-Version 0.2
+Version 1.0
+
+Notes
+-----
+This module is intentionally limited to topological reconstruction.
+Geometry validation and operator warnings belong in geometry analysis /
+report generation rather than here.
+
+Future report suggestion:
+    ATTENTION:
+        Potential near-overlapping geometry detected
+        (very small offsets between parallel entities).
 """
+
 
 from collections import defaultdict
 
@@ -243,7 +256,7 @@ def build_paths(drawing: Drawing) -> None:
                         stack.append(neighbour)
 
         #
-        # Version 0.2
+        # Version 1.0
         #
         # The component is NOT ordered yet.
         #
@@ -269,10 +282,12 @@ def build_paths(drawing: Drawing) -> None:
 
             drawing.paths.append(path)
 
-    print()
+            print()
     print("Topology")
     print("-------------------------------------")
     print(f"Objects : {len(drawing.objects)}")
     print(f"Paths   : {len(drawing.paths)}")
+
+
 
 
