@@ -291,7 +291,6 @@ def build_paths(drawing: Drawing) -> None:
 
             drawing.paths.append(path)
 
-            print()
     print("Topology")
     print("-------------------------------------")
     print(f"Objects : {len(drawing.objects)}")

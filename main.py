@@ -163,42 +163,42 @@ def process_project(folder: Path) -> None:
         )
 
         # ----------------------------------------------------
-        # Add drawing to project
-        # ----------------------------------------------------
-
-        project.add(drawing)
-
-        # ----------------------------------------------------
         # Validation report
         # ----------------------------------------------------
+
+        fits_large = drawing.fits(
+            LARGE_USABLE_WIDTH_MM,
+            LARGE_USABLE_HEIGHT_MM,
+        )
+
+        fits_small = drawing.fits(
+            SMALL_USABLE_WIDTH_MM,
+            SMALL_USABLE_HEIGHT_MM,
+        )
 
         report.validation(
             drawing,
             rotated,
             min(normal_overflow, rotated_overflow),
-            drawing.fits(
-                LARGE_USABLE_WIDTH_MM,
-                LARGE_USABLE_HEIGHT_MM,
-            ),
-            drawing.fits(
-                SMALL_USABLE_WIDTH_MM,
-                SMALL_USABLE_HEIGHT_MM,
-            ),
+            fits_large,
+            fits_small,
         )
 
         dev_report.validation(
             drawing,
             rotated,
             min(normal_overflow, rotated_overflow),
-            drawing.fits(
-                LARGE_USABLE_WIDTH_MM,
-                LARGE_USABLE_HEIGHT_MM,
-            ),
-            drawing.fits(
-                SMALL_USABLE_WIDTH_MM,
-                SMALL_USABLE_HEIGHT_MM,
-            ),
+            fits_large,
+            fits_small,
         )
+
+        if not fits_large:
+
+            print(
+                f"ABORT: {pdf.name} exceeds the maximum machine size."
+            )
+
+            continue
 
         report.geometry(geometry)
         dev_report.geometry(geometry)
@@ -239,6 +239,12 @@ def process_project(folder: Path) -> None:
 
         report.chains(chains)
         dev_report.chains(chains)
+
+        # ----------------------------------------------------
+        # Drawing accepted
+        # ----------------------------------------------------
+
+        project.add(drawing)
 
     # ========================================================
     # Export SVG
@@ -338,6 +344,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
