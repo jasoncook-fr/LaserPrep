@@ -5,9 +5,9 @@
 # ============================================================
 from pathlib import Path
 
-# declare batch processing folder
-BATCH_ROOT = Path("/home/jaz/Nextcloud/Dev/ENSAM/TMP/TEST_FILES")
-
+# declare batch processing ADMIN folders
+BATCH_ROOT = Path("/home/user/Nextcloud/Dev/ENSAM/TMP/SOME_FILES")
+ADMIN_ROOT = Path("/home/user/Nextcloud/Dev/ENSAM/ADMIN")
 # -------------------------------------------------------------
 # Debug
 # -------------------------------------------------------------

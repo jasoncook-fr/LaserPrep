@@ -99,23 +99,22 @@ In this example, `Versions` will not be processed.
 
 LaserPrep does not unnecessarily reprocess projects that have already been successfully processed.
 
-For each project, LaserPrep records a SHA-256 fingerprint of every PDF in:
+For each project, LaserPrep records a SHA-256 fingerprint of every PDF in an administrator-controlled state file.
+
+State files are stored outside the student/Nextcloud folders, under the configured `ADMIN_ROOT`:
 
 ```text
-.laserprep_state.json
+ADMIN/
+└── STATE/
+    ├── 008.json
+    ├── 009.json
+    ├── 009__testFolder.json
+    └── ...
 ```
 
-The state file is stored inside the project folder.
+This keeps the processing state outside the student workspace so that students cannot modify or delete the information used to determine whether a project needs to be reprocessed.
 
-For example:
-
-```text
-Student_A/
-├── drawing1.pdf
-├── drawing2.pdf
-├── Student_A.svg
-└── .laserprep_state.json
-```
+For projects stored directly in a student folder, the state file uses the student folder name. For projects inside a project subfolder, the state filename combines the student and project names to avoid collisions.
 
 On a subsequent batch run:
 
@@ -127,7 +126,43 @@ On a subsequent batch run:
 
 The comparison is based on the contents of the PDFs, not their filenames. Therefore, replacing a PDF with a revised version using the same filename will correctly trigger reprocessing.
 
-The state file should not normally be edited manually.
+All administrator-controlled batch data is kept under `ADMIN_ROOT`, separate from the student workspace:
+
+```text
+ADMIN/
+├── CURRENT_BATCH_REPORT.txt
+├── BATCH_REPORTS/
+└── STATE/
+```
+
+The state files are internal administrative data and should not normally be edited manually.
+
+---
+
+# Batch Reports
+
+Each Batch Mode run produces a batch report containing the important aborts and warnings generated during processing.
+
+The most recent report is always available directly in the administrator folder:
+
+```text
+ADMIN/
+└── CURRENT_BATCH_REPORT.txt
+```
+
+This file is replaced by each new Batch Mode run.
+
+A permanent historical copy is also created for every run:
+
+```text
+ADMIN/
+└── BATCH_REPORTS/
+    ├── 2026-08-28_14-32-05.txt
+    ├── 2026-08-28_17-06-41.txt
+    └── ...
+```
+
+The timestamped reports are retained so that previous batch runs can be reviewed later.
 
 ---
 
@@ -255,9 +290,11 @@ Configuration
 4. LaserPrep identifies new or changed projects.
 5. Unchanged projects are skipped.
 6. Projects requiring processing are processed normally.
-7. Successfully processed projects are recorded for the next batch run.
-8. Open the resulting SVGs in Inkscape for inspection.
-9. Send approved jobs to the laser cutter.
+7. Successfully processed projects are recorded in the administrator-controlled state directory.
+8. A current batch report is written to `ADMIN/CURRENT_BATCH_REPORT.txt`.
+9. A timestamped copy of the batch report is saved in `ADMIN/BATCH_REPORTS/`.
+10. Open the resulting SVGs in Inkscape for inspection.
+11. Send approved jobs to the laser cutter.
 
 ---
 

@@ -29,6 +29,7 @@ from geometry_cleanup import (
 )
 from config import (
     BATCH_ROOT,
+    ADMIN_ROOT,
     DISPLAY_OFFSET_X_MM,
     DISPLAY_OFFSET_Y_MM,
     LARGE_USABLE_WIDTH_MM,
@@ -78,10 +79,24 @@ def pdf_hash(path: Path) -> str:
 
     return sha256.hexdigest()
 
+def processing_state_path(folder: Path) -> Path:
+    """Return the administrator-only state file for a project."""
+
+    state_dir = ADMIN_ROOT / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+
+    if folder.parent == BATCH_ROOT:
+        filename = f"{folder.name}.json"
+    else:
+        filename = f"{folder.parent.name}__{folder.name}.json"
+
+    return state_dir / filename
+
+
 def load_processing_state(folder: Path) -> dict:
     """Load the record of the last successful processing run."""
 
-    state_file = folder / ".laserprep_state.json"
+    state_file = processing_state_path(folder)
 
     if not state_file.exists():
         return {}
@@ -96,7 +111,7 @@ def load_processing_state(folder: Path) -> dict:
 def save_processing_state(folder: Path, pdf_hashes: dict[str, str]) -> None:
     """Save the hashes of PDFs successfully processed."""
 
-    state_file = folder / ".laserprep_state.json"
+    state_file = processing_state_path(folder)
 
     with state_file.open("w", encoding="utf-8") as f:
         json.dump(
@@ -441,7 +456,7 @@ def main() -> None:
                 alerts,
             )
 
-        alerts.save(root)
+        alerts.save(ADMIN_ROOT)
         return
 
     print("Invalid choice.")

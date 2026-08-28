@@ -44,51 +44,87 @@ class BatchAlerts:
 
     def save(self, folder) -> None:
 
-        output = folder / "Batch_Alerts.txt"
+        report_lines = []
 
-        with output.open(
+        report_lines.append("=" * 60 + "\n")
+        report_lines.append("LaserPrep Batch Report\n")
+        report_lines.append("=" * 60 + "\n\n")
+
+        # ------------------------------------------------
+        # Aborts
+        # ------------------------------------------------
+
+        report_lines.append("ABORTS\n")
+        report_lines.append("-" * 60 + "\n")
+
+        if self.aborts:
+
+            for project, pdf, message in self.aborts:
+                report_lines.append(f"{project}\n")
+                report_lines.append(f"    {pdf}\n")
+                report_lines.append(f"    {message}\n\n")
+
+        else:
+
+            report_lines.append("None\n\n")
+
+        # ------------------------------------------------
+        # Warnings
+        # ------------------------------------------------
+
+        report_lines.append("WARNINGS\n")
+        report_lines.append("-" * 60 + "\n")
+
+        if self.warnings:
+
+            for project, pdf, message in self.warnings:
+                report_lines.append(f"{project}\n")
+                report_lines.append(f"    {pdf}\n")
+                report_lines.append(f"    {message}\n\n")
+
+        else:
+
+            report_lines.append("None\n")
+
+        report = "".join(report_lines)
+
+        # ------------------------------------------------
+        # Administrative report directories
+        # ------------------------------------------------
+
+        folder.mkdir(parents=True, exist_ok=True)
+
+        history_folder = folder / "BATCH_REPORTS"
+        history_folder.mkdir(parents=True, exist_ok=True)
+
+        # ------------------------------------------------
+        # Current report
+        # ------------------------------------------------
+
+        current_report = folder / "CURRENT_BATCH_REPORT.txt"
+
+        with current_report.open(
             "w",
             encoding="utf-8",
         ) as f:
+            f.write(report)
 
-            f.write("=" * 60 + "\n")
-            f.write("LaserPrep Batch Alerts\n")
-            f.write("=" * 60 + "\n\n")
+        # ------------------------------------------------
+        # Historical report
+        # ------------------------------------------------
 
-            # ------------------------------------------------
-            # Aborts
-            # ------------------------------------------------
+        from datetime import datetime
 
-            f.write("ABORTS\n")
-            f.write("-" * 60 + "\n")
+        timestamp = datetime.now().strftime(
+            "%Y-%m-%d_%H-%M-%S"
+        )
 
-            if self.aborts:
+        historical_report = (
+            history_folder / f"{timestamp}.txt"
+        )
 
-                for project, pdf, message in self.aborts:
-
-                    f.write(f"{project}\n")
-                    f.write(f"    {pdf}\n")
-                    f.write(f"    {message}\n\n")
-
-            else:
-
-                f.write("None\n\n")
-
-            # ------------------------------------------------
-            # Warnings
-            # ------------------------------------------------
-
-            f.write("WARNINGS\n")
-            f.write("-" * 60 + "\n")
-
-            if self.warnings:
-
-                for project, pdf, message in self.warnings:
-
-                    f.write(f"{project}\n")
-                    f.write(f"    {pdf}\n")
-                    f.write(f"    {message}\n\n")
-
-            else:
-
-                f.write("None\n")
+        with historical_report.open(
+            "w",
+            encoding="utf-8",
+        ) as f:
+            f.write(report)
