@@ -5,6 +5,8 @@ LaserPrep application entry point.
 
 Version 0.5
 """
+import hashlib
+import json
 from batch_alerts import BatchAlerts
 from complexity import analyse_complexity
 from geometry_chains import analyse as analyse_chains
@@ -65,6 +67,44 @@ def choose_folder() -> Path | None:
 # ============================================================
 # Main
 # ============================================================
+def pdf_hash(path: Path) -> str:
+    """Return a SHA-256 hash of a PDF's contents."""
+
+    sha256 = hashlib.sha256()
+
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            sha256.update(chunk)
+
+    return sha256.hexdigest()
+
+def load_processing_state(folder: Path) -> dict:
+    """Load the record of the last successful processing run."""
+
+    state_file = folder / ".laserprep_state.json"
+
+    if not state_file.exists():
+        return {}
+
+    try:
+        with state_file.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_processing_state(folder: Path, pdf_hashes: dict[str, str]) -> None:
+    """Save the hashes of PDFs successfully processed."""
+
+    state_file = folder / ".laserprep_state.json"
+
+    with state_file.open("w", encoding="utf-8") as f:
+        json.dump(
+            pdf_hashes,
+            f,
+            indent=2,
+            sort_keys=True,
+        )
 
 def process_project(
     folder: Path,
@@ -76,8 +116,20 @@ def process_project(
         print(f"No PDF files found in {folder}")
         return
 
+    current_hashes = {
+        pdf.name: pdf_hash(pdf)
+        for pdf in pdf_files
+    }
+
+    previous_hashes = load_processing_state(folder)
+
+    if current_hashes == previous_hashes:
+        print(f"Skipping unchanged project: {folder}")
+        return
+
     project = Project(folder.name)
     report = Report()
+    processing_failed = False
     dev_report = DeveloperReport()
     debug = DebugManager(DEBUG)
     debug.start_run(project.name)
@@ -108,6 +160,8 @@ def process_project(
         dev_report.complexity(complexity)
 
         if complexity.should_abort:
+
+            processing_failed = True
 
             if alerts is not None:
                 alerts.abort(
@@ -205,6 +259,8 @@ def process_project(
         )
 
         if not fits_large:
+
+            processing_failed = True
 
             print(
                 f"ABORT: {pdf.name} exceeds the maximum machine size."
@@ -308,6 +364,9 @@ def process_project(
     diag.end()
     project.summary()
 
+    if not processing_failed:
+        save_processing_state(folder, current_hashes)
+
 def main() -> None:
 
     print("=" * 44)
@@ -343,10 +402,26 @@ def main() -> None:
             print(f"Batch root does not exist: {root}")
             return
 
-        projects = sorted(
-            p for p in root.rglob("*")
-            if p.is_dir() and any(p.glob("*.pdf"))
-        )
+        projects = []
+
+        # Each student folder is the first level below BATCH_ROOT.
+        for student_folder in sorted(root.iterdir()):
+
+            if not student_folder.is_dir():
+                continue
+
+            # Lazy organization:
+            # PDFs directly in the student's folder form one project.
+            if any(student_folder.glob("*.pdf")):
+                projects.append(student_folder)
+
+            # Organized students:
+            # Each immediate subfolder containing PDFs is a project.
+            projects.extend(
+                p
+                for p in sorted(student_folder.iterdir())
+                if p.is_dir() and any(p.glob("*.pdf"))
+            )
 
         if not projects:
             print("No projects found.")
@@ -378,27 +453,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
