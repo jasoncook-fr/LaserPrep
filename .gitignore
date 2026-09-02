@@ -35,3 +35,6 @@ TEST_FILES/
 
 debug/*
 !debug/.gitkeep
+
+# Proprietary LTT Windows driver files
+tools/windows-driver-files/
