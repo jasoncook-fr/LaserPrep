@@ -7,7 +7,7 @@ from pathlib import Path
 
 # declare batch processing ADMIN folders
 BATCH_ROOT = Path("/home/jaz/Documents/TEST_FILES")
-ADMIN_ROOT = Path("/home/jaz/Documents/ADMIN")
+ADMIN_ROOT = Path("/home/jaz/Nextcloud/LaserPrep/ADMIN")
 # -------------------------------------------------------------
 # Debug
 # -------------------------------------------------------------

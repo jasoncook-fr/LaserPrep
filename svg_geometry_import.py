@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import copy
 import xml.etree.ElementTree as ET
+import re
 
 from drawing import Line, Bezier
 from svg_transform import AffineTransform
@@ -113,10 +114,16 @@ def import_svg_geometry(svg_filename):
 
     drawing_id = 0
 
-    for node in root.iter():
+    def _artwork_paths(node, inside_clip=False):
+        inside_clip = inside_clip or _strip(node.tag) == "clipPath"
 
-        if _strip(node.tag) != "path":
-            continue
+        if _strip(node.tag) == "path" and not inside_clip:
+            yield node
+
+        for child in node:
+            yield from _artwork_paths(child, inside_clip)
+
+    for node in _artwork_paths(root):
 
         d = node.attrib.get("d", "").strip()
 
@@ -131,9 +138,9 @@ def import_svg_geometry(svg_filename):
         fill_opacity = node.attrib.get("fill-opacity", "1").strip()
 
         if (
-            (stroke_attr in ("", "none") or stroke_opacity == "0")
+            (stroke_attr == "none" or stroke_opacity == "0")
             and
-            (fill_attr in ("", "none") or fill_opacity == "0")
+            (fill_attr == "none" or fill_opacity == "0")
         ):
             continue
 
@@ -141,9 +148,13 @@ def import_svg_geometry(svg_filename):
 
         stroke = _parse_colour(node.attrib.get("stroke"))
 
-        # Geometry import intentionally ignores PDF fills.
-        # Text is imported separately through the Poppler pipeline.
-        fill = None
+        # Black in the source artwork is engraving artwork. MuPDF may omit
+        # the fill attribute because black is SVG's default fill.
+        fill_attr_raw = node.attrib.get("fill")
+        if fill_attr_raw is None and stroke is None:
+            fill = (0, 0, 0)
+        else:
+            fill = _parse_colour(fill_attr_raw)
 
         width = _parse_width(
             node.attrib.get("stroke-width")
@@ -151,6 +162,28 @@ def import_svg_geometry(svg_filename):
 
         transform_text = node.attrib.get("transform", "")
         transform = AffineTransform.from_svg(transform_text)
+
+        # MuPDF's stroke-width is expressed before the SVG transform.
+        # Convert it to the effective width after the transform.
+        stroke_scale = 1.0
+        matrix_match = re.search(
+            r"matrix\(\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*,"
+            r"\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)",
+            transform_text,
+        )
+        if matrix_match:
+            ma, mb, mc, md = (
+                float(value) for value in matrix_match.groups()
+            )
+            sx = (ma * ma + mb * mb) ** 0.5
+            sy = (mc * mc + md * md) ** 0.5
+
+            if sx and sy:
+                stroke_scale = (sx + sy) / 2.0
+            elif sx:
+                stroke_scale = sx
+            elif sy:
+                stroke_scale = sy
 
         paths = parse_svg_path(
             d,
@@ -168,10 +201,10 @@ def import_svg_geometry(svg_filename):
             path.fill_color = fill
 
             path.stroke_enabled = stroke is not None
-            path.fill_enabled = False
+            path.fill_enabled = fill is not None
 
-            # Store stroke width in millimetres.
-            path.stroke_width = width * PT_TO_MM
+            # Store the effective source stroke width in millimetres.
+            path.stroke_width = width * stroke_scale * PT_TO_MM
 
             path.source_drawing = drawing_id
 

@@ -1,23 +1,14 @@
-
 """
 topology.py
 
 Reconstruct topological paths from imported geometry.
 
-Version 1.0
+Version 0.2
 
-Notes
------
-This module is intentionally limited to topological reconstruction.
-Geometry validation and operator warnings belong in geometry analysis /
-report generation rather than here.
-
-Future report suggestion:
-    ATTENTION:
-        Potential near-overlapping geometry detected
-        (very small offsets between parallel entities).
+Topology rebuilds stroke geometry, but preserves imported paths that carry
+meaningful fill information (for example filled PDF artwork) and imported
+closed black artwork strokes whose original width must be retained.
 """
-
 
 from collections import defaultdict
 
@@ -42,62 +33,42 @@ def point_key(point):
     )
 
 
+def _preserved_imported_paths(drawing):
+    """
+    Preserve all imported black engraving artwork.
+
+    Black fills are engraving fills. Black strokes are also engraving
+    artwork and retain their effective source stroke width. Other colors
+    continue through the normal topology/hairline pipeline.
+    """
+
+    preserved = []
+
+    for path in drawing.paths:
+        if getattr(path, "is_text", False):
+            preserved.append(path)
+            continue
+
+        if getattr(path, "fill_color", None) is not None:
+            preserved.append(path)
+            continue
+
+        if getattr(path, "stroke_color", None) == (0, 0, 0):
+            path.preserve_stroke_width = True
+            preserved.append(path)
+
+    return preserved
+
+
 # ============================================================
 # Public
 # ============================================================
 
-
-def _walk_path(start_edge, start_vertex, edge_lookup, adjacency, lines, used):
-    """
-    Walk a maximal non-branching path.
-    """
-    ordered = []
-    current_edge = start_edge
-    current_vertex = start_vertex
-
-    while True:
-        used.add(current_edge)
-        ordered.append(current_edge)
-
-        line = lines[current_edge]
-        a = point_key(line.start)
-        b = point_key(line.end)
-        next_vertex = b if current_vertex == a else a
-
-        if len(adjacency[next_vertex]) != 2:
-            break
-
-        nxt = None
-        for edge in adjacency[next_vertex]:
-            if edge != current_edge and edge not in used:
-                nxt = edge
-                break
-
-        if nxt is None:
-            break
-
-        current_edge = nxt
-        current_vertex = next_vertex
-
-    return ordered
-
-
-
-
-def _same_style(a, b):
-    """Return True if two primitives can belong to the same SVG path."""
-    return (
-        a.stroke_color == b.stroke_color
-        and a.stroke_width == b.stroke_width
-        and getattr(a, "stroke_enabled", True) == getattr(b, "stroke_enabled", True)
-        and getattr(a, "fill_enabled", False) == getattr(b, "fill_enabled", False)
-        and getattr(a, "fill_color", None) == getattr(b, "fill_color", None)
-    )
-
 def _order_component(component, lines):
     """
-    Edge-centric decomposition. Every edge is emitted exactly once.
+    Return the line indices in traversal order.
     """
+
     adjacency = defaultdict(list)
 
     for idx in component:
@@ -105,93 +76,81 @@ def _order_component(component, lines):
         adjacency[point_key(line.start)].append(idx)
         adjacency[point_key(line.end)].append(idx)
 
-    used = set()
-    paths = []
+    start = None
 
-    def extend(edge_idx, vertex):
-        out = []
-        current_edge = edge_idx
-        current_vertex = vertex
+    for key, members in adjacency.items():
+        if len(members) == 1:
+            start = members[0]
+            break
 
-        while True:
-            if current_edge in used:
-                break
+    if start is None:
+        start = component[0]
 
-            used.add(current_edge)
-            out.append(current_edge)
+    ordered = []
+    visited = set()
 
-            line = lines[current_edge]
-            a = point_key(line.start)
-            b = point_key(line.end)
-            nxt_vertex = b if current_vertex == a else a
+    current = start
+    current_point = None
 
-            if len(adjacency[nxt_vertex]) != 2:
-                break
+    while True:
 
-            nxt_edge = None
-            for e in adjacency[nxt_vertex]:
-                if e == current_edge or e in used:
-                    continue
-                if not _same_style(lines[current_edge], lines[e]):
-                    continue
-                nxt_edge = e
-                break
+        ordered.append(current)
+        visited.add(current)
 
-            if nxt_edge is None:
-                break
+        line = lines[current]
 
-            current_edge = nxt_edge
-            current_vertex = nxt_vertex
+        if current_point is None:
+            current_point = point_key(line.end)
 
-        return out
-
-    for edge in component:
-        if edge in used:
-            continue
-
-        line = lines[edge]
-        a = point_key(line.start)
-        b = point_key(line.end)
-
-        left = list(reversed(extend(edge, a)))
-        if left:
-            left = left[:-1]  # remove duplicated seed edge
-
-        right = []
-        if edge not in used:
-            right = extend(edge, b)
         else:
-            right = [edge] + extend(edge, b)
+            if point_key(line.start) == current_point:
+                current_point = point_key(line.end)
+            else:
+                current_point = point_key(line.start)
 
-        path = left + right
-        if path:
-            paths.append(path)
+        next_line = None
 
-    return paths
+        for candidate in adjacency[current_point]:
+            if candidate not in visited:
+                next_line = candidate
+                break
+
+        if next_line is None:
+            break
+
+        current = next_line
+
+    return ordered
+
 
 def build_paths(drawing: Drawing) -> None:
     """
     Build topological Path objects from drawing.objects.
 
-    This function populates drawing.paths while leaving
-    drawing.objects completely untouched.
+    Imported filled artwork and selected closed circular artwork strokes
+    are preserved. Ordinary stroke geometry is rebuilt as before.
     """
 
-    # Preserve imported text paths. Topology only rebuilds geometry.
-    preserved_text_paths = [
-        p for p in drawing.paths
-        if getattr(p, "is_text", False)
-    ]
+    preserved = _preserved_imported_paths(drawing)
 
     drawing.paths.clear()
+    drawing.paths.extend(preserved)
 
-    # Restore the original text paths immediately.
-    drawing.paths.extend(preserved_text_paths)
+    preserved_segments = {
+        id(segment)
+        for path in preserved
+        for segment in path
+    }
 
     lines = []
     beziers = []
 
     for obj in drawing.objects:
+
+        # Filled artwork and preserved circular strokes have already been
+        # kept as complete Paths. Do not reconstruct their segments.
+        if id(obj) in preserved_segments:
+            continue
 
         if isinstance(obj, Line):
             lines.append(obj)
@@ -199,10 +158,7 @@ def build_paths(drawing: Drawing) -> None:
         elif isinstance(obj, Bezier):
             beziers.append(obj)
 
-    #
-    # Preserve Beziers for now.
-    #
-
+    # Preserve Beziers as individual stroke paths.
     for bezier in beziers:
 
         path = Path()
@@ -215,10 +171,7 @@ def build_paths(drawing: Drawing) -> None:
 
         drawing.paths.append(path)
 
-    #
     # Build endpoint graph.
-    #
-
     adjacency = defaultdict(list)
 
     for index, line in enumerate(lines):
@@ -226,10 +179,7 @@ def build_paths(drawing: Drawing) -> None:
         adjacency[point_key(line.start)].append(index)
         adjacency[point_key(line.end)].append(index)
 
-    #
     # Discover connected components.
-    #
-
     visited = set()
 
     for start in range(len(lines)):
@@ -238,7 +188,6 @@ def build_paths(drawing: Drawing) -> None:
             continue
 
         stack = [start]
-
         component = []
 
         while stack:
@@ -249,7 +198,6 @@ def build_paths(drawing: Drawing) -> None:
                 continue
 
             visited.add(current)
-
             component.append(current)
 
             line = lines[current]
@@ -264,40 +212,25 @@ def build_paths(drawing: Drawing) -> None:
                     if neighbour not in visited:
                         stack.append(neighbour)
 
-        #
-        # Version 1.0
-        #
-        # The component is NOT ordered yet.
-        #
-        # We simply create one Path containing all
-        # connected Line objects.
-        #
+        ordered = _order_component(component, lines)
 
-        ordered_paths = _order_component(component, lines)
+        if not ordered:
+            continue
 
-        for ordered in ordered_paths:
-            if not ordered:
-                continue
+        first = lines[ordered[0]]
 
-            first = lines[ordered[0]]
+        path = Path()
+        path.stroke_color = first.stroke_color
+        path.stroke_width = first.stroke_width
+        path.import_order = first.import_order
 
-            path = Path()
-            path.stroke_color = first.stroke_color
-            path.stroke_width = first.stroke_width
-            path.import_order = first.import_order
+        for index in ordered:
+            path.add(lines[index])
 
-            for index in ordered:
-                path.add(lines[index])
+        drawing.paths.append(path)
 
-            drawing.paths.append(path)
-
+    print()
     print("Topology")
     print("-------------------------------------")
     print(f"Objects : {len(drawing.objects)}")
     print(f"Paths   : {len(drawing.paths)}")
-
-
-
-
-
-
