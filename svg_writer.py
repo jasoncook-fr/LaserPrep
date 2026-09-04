@@ -148,20 +148,24 @@ def _write_imported_path(parent, path):
 
     if path.stroke_enabled and stroke is not None:
         attrs["stroke"] = _rgb_to_hex(stroke)
-        attrs["stroke-width"] = f"{DISPLAY_STROKE_WIDTH_MM:.3f}"
+
+        # Black strokes are engraving artwork. Preserve their effective
+        # source width. Other strokes retain the established hairline.
+        if getattr(path, "preserve_stroke_width", False):
+            attrs["stroke-width"] = f"{path.stroke_width:.3f}"
+        else:
+            attrs["stroke-width"] = f"{DISPLAY_STROKE_WIDTH_MM:.3f}"
+
         attrs["stroke-linecap"] = "round"
         attrs["stroke-linejoin"] = "round"
     else:
         attrs["stroke"] = "none"
-    '''
-    if path.fill_enabled and fill is not None:
+
+    if fill is not None:
         attrs["fill"] = _rgb_to_hex(fill)
         attrs["fill-rule"] = "evenodd"
     else:
         attrs["fill"] = "none"
-    '''
-    # TEMPORARY TEST
-    attrs["fill"] = "none"
 
     ET.SubElement(
         parent,
