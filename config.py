@@ -6,8 +6,8 @@
 from pathlib import Path
 
 # declare batch processing ADMIN folders
-BATCH_ROOT = Path("/home/user/Nextcloud/Dev/ENSAM/TMP/SOME_FILES")
-ADMIN_ROOT = Path("/home/user/Nextcloud/Dev/ENSAM/ADMIN")
+BATCH_ROOT = Path("/home/jaz/Documents/TEST_FILES")
+ADMIN_ROOT = Path("/home/jaz/Documents/ADMIN")
 # -------------------------------------------------------------
 # Debug
 # -------------------------------------------------------------
@@ -43,7 +43,7 @@ SMALL_USABLE_HEIGHT_MM = SMALL_BED_HEIGHT_MM - (2 * DISPLAY_OFFSET_Y_MM)
 # DISPLAY
 # ============================================================
 
-DISPLAY_STROKE_WIDTH_MM = 0.20
+DISPLAY_STROKE_WIDTH_MM = 0.01
 LASER_STROKE_WIDTH_MM = 0.01
 
 
