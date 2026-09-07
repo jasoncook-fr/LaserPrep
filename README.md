@@ -34,6 +34,7 @@ This release marks the first stable production version of the complete processin
 * Complexity analysis
 * Operator and developer reports
 * SVG export for Inkscape
+* Single-page PDF validation — multi-page PDFs are rejected before processing
 
 ---
 
@@ -258,12 +259,91 @@ Configuration
 
 ---
 
+# Installation
+
+LaserPrep is currently developed and packaged for Linux.
+
+## Linux installation
+
+Clone the repository and enter the project directory:
+
+```bash
+git clone https://github.com/jasoncook-fr/LaserPrep.git
+cd LaserPrep
+```
+
+Create a Python virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Install the Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+The Linux system should also have the following installed:
+
+* Python 3.11+
+* Poppler (`pdftocairo`)
+* Inkscape
+
+## Building the application
+
+LaserPrep includes a build script that creates the standalone application and desktop launcher.
+
+From the project directory, with the virtual environment activated:
+
+```bash
+./build_app.sh
+```
+
+The script:
+
+1. Uses the project's `.venv` environment.
+2. Runs PyInstaller to build a standalone `LaserPrep` executable.
+3. Uses `rocket.png` as the application icon.
+4. Creates a `LaserPrep.desktop` launcher on the user's Desktop.
+5. Configures the launcher to open LaserPrep in a terminal.
+6. Keeps the terminal open after processing finishes so that processing output and errors can be reviewed.
+
+The resulting executable is created at:
+
+```text
+dist/LaserPrep
+```
+
+The desktop launcher is created at:
+
+```text
+~/Desktop/LaserPrep.desktop
+```
+
+The `.venv` is required for **building and developing** LaserPrep, but is not required to run the packaged `dist/LaserPrep` executable.
+
+## Running from source
+
+For development or testing, LaserPrep can also be launched directly from the virtual environment:
+
+```bash
+source .venv/bin/activate
+python main.py
+```
+
+This opens the Tkinter launcher.
+
+---
+
 # Requirements
 
 * Python 3.11+
 * PyMuPDF
 * Poppler (`pdftocairo`)
 * Inkscape
+* PyInstaller (installed through `requirements.txt`)
 
 ---
 
