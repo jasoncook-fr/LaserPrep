@@ -21,13 +21,13 @@ from pathlib import Path
 
 class DebugManager:
 
-    def __init__(self, enabled=False):
+    def __init__(self, enabled=False, root=None):
 
         self.enabled = enabled
 
         self.project_name = ""
 
-        self.root = Path("debug")
+        self.root = Path(root) if root is not None else Path("debug")
 
         self.session = None
 

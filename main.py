@@ -233,7 +233,11 @@ def process_project(
     processing_failed = False
     dev_report = DeveloperReport()
 
-    debug = DebugManager(DEBUG)
+    debug = DebugManager(
+        DEBUG,
+        folder / ".laserprep" / "debug",
+    )
+
     debug.start_run(project.name)
     diag.begin(project, folder)
 
