@@ -217,6 +217,8 @@ Record successful processing state
 
 ```text
 main.py
+build_app.sh
+install_app.sh
 
 Core
 ├── pdf_reader.py
@@ -324,6 +326,41 @@ The desktop launcher is created at:
 
 The `.venv` is required for **building and developing** LaserPrep, but is not required to run the packaged `dist/LaserPrep` executable.
 
+## Installing the production application
+
+For a production workstation, LaserPrep can be installed system-wide using `install_app.sh`.
+
+The production installer:
+
+1. Installs the built application to `/opt/LaserPrep/`.
+2. Installs the application icon alongside the executable.
+3. Creates a desktop launcher for the `ATN` user.
+4. Uses the system-installed application rather than the development copy.
+5. Keeps the production application owned by `root`, preventing the `ATN` user from modifying it.
+
+The `ATN` account must already exist on the workstation.
+
+After building and testing the application:
+
+```bash
+chmod +x install_app.sh
+sudo ./install_app.sh
+```
+
+The production application is installed at:
+
+```text
+/opt/LaserPrep/LaserPrep
+```
+
+and the desktop launcher is created at:
+
+```text
+/home/ATN/Desktop/LaserPrep.desktop
+```
+
+The `ATN` user does not need the Python virtual environment or development dependencies to run the installed application.
+
 ## Running from source
 
 For development or testing, LaserPrep can also be launched directly from the virtual environment:
@@ -366,7 +403,7 @@ This opens the Tkinter launcher.
 
 1. Place student folders inside `BATCH_ROOT`.
 2. Students place PDFs directly in their folder or in one level of project subfolders.
-3. Launch LaserPrep in Batch Mode.
+3. Launch the installed LaserPrep application in Batch Mode.
 4. LaserPrep identifies new or changed projects.
 5. Unchanged projects are skipped.
 6. Projects requiring processing are processed normally.

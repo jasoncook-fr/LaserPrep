@@ -233,73 +233,6 @@ def process_project(
     processing_failed = False
     dev_report = DeveloperReport()
 
-    # ========================================================
-    # Validate PDF page counts before processing
-    # ========================================================
-
-    for pdf in pdf_files:
-        report.begin_file(pdf.name)
-        dev_report.begin_file(pdf.name)
-
-        try:
-            with fitz.open(pdf) as doc:
-                page_count = len(doc)
-        except Exception as exc:
-            message = (
-                "Could not read the PDF to determine its page count."
-            )
-
-            print_error(f"ABORT: Could not read {pdf.name}: {exc}")
-
-            report.current["status"] = "REJECTED"
-            report.current["alerts"].append(message)
-
-            if alerts is not None:
-                alerts.abort(
-                    folder.name,
-                    pdf.name,
-                    message,
-                )
-
-            reports_folder = folder / "reports"
-            reports_folder.mkdir(exist_ok=True)
-            report.save(
-                reports_folder / f"{project.name}.base_report.txt",
-                project.name,
-            )
-
-            return
-
-        if page_count > 1:
-            message = (
-                f"PDF contains {page_count} pages. "
-                "LaserPrep only accepts single-page PDFs."
-            )
-
-            print_error(
-                f"ABORT: {pdf.name} contains multiple pages ({page_count})."
-            )
-
-            # Record the rejection in the student-accessible report.
-            report.current["status"] = "REJECTED"
-            report.current["alerts"].append(message)
-
-            if alerts is not None:
-                alerts.abort(
-                    folder.name,
-                    pdf.name,
-                    message,
-                )
-
-            reports_folder = folder / "reports"
-            reports_folder.mkdir(exist_ok=True)
-            report.save(
-                reports_folder / f"{project.name}.base_report.txt",
-                project.name,
-            )
-
-            return
-
     debug = DebugManager(DEBUG)
     debug.start_run(project.name)
     diag.begin(project, folder)
@@ -315,6 +248,62 @@ def process_project(
     # ========================================================
 
     for pdf in pdf_files:
+
+        # Start exactly one report entry for this PDF.
+        report.begin_file(pdf.name)
+        dev_report.begin_file(pdf.name)
+
+        # ----------------------------------------------------
+        # Validate PDF page count
+        # ----------------------------------------------------
+
+        try:
+            with fitz.open(pdf) as doc:
+                page_count = len(doc)
+        except Exception as exc:
+            processing_failed = True
+
+            message = (
+                "Could not read the PDF to determine its page count."
+            )
+
+            print_error(f"ABORT: Could not read {pdf.name}: {exc}")
+
+            report.current["status"] = "REJECTED"
+            report.current["alerts"].append(message)
+
+            if alerts is not None:
+                alerts.abort(
+                    project.name,
+                    pdf.name,
+                    message,
+                )
+
+            continue
+
+        if page_count > 1:
+            processing_failed = True
+
+            message = (
+                f"PDF contains {page_count} pages. "
+                "LaserPrep only accepts single-page PDFs."
+            )
+
+            print_error(
+                f"ABORT: {pdf.name} contains multiple pages ({page_count})."
+            )
+
+            report.current["status"] = "REJECTED"
+            report.current["alerts"].append(message)
+
+            if alerts is not None:
+                alerts.abort(
+                    project.name,
+                    pdf.name,
+                    message,
+                )
+
+            continue
 
         print_info(f"Reading {pdf.name}...")
 
@@ -363,6 +352,34 @@ def process_project(
         )
 
         build_paths(drawing)
+
+        # ----------------------------------------------------
+        # Reject PDFs that produced no usable vector geometry
+        # ----------------------------------------------------
+
+        if len(drawing.paths) == 0:
+            processing_failed = True
+
+            message = (
+                "No usable vector geometry was found in this PDF. "
+                "LaserPrep could not produce any geometry to process."
+            )
+
+            print_error(
+                f"ABORT: {pdf.name} contains no usable vector geometry."
+            )
+
+            report.current["status"] = "REJECTED"
+            report.current["alerts"].append(message)
+
+            if alerts is not None:
+                alerts.abort(
+                    project.name,
+                    pdf.name,
+                    message,
+                )
+
+            continue
 
         diag.export_svg(
             drawing,
@@ -501,12 +518,35 @@ def process_project(
 
     output_file = folder / f"{project.name}.svg"
 
+    reports_folder = folder / "reports"
+    reports_folder.mkdir(exist_ok=True)
+
+    # Do not create an empty SVG when no PDF produced usable geometry.
+    if not project.drawings:
+        report.save(
+            reports_folder / f"{project.name}.base_report.txt",
+            project.name,
+        )
+
+        dev_report.save(
+            reports_folder / f"{project.name}.extensive_report.txt",
+            project.name,
+        )
+
+        print_error(
+            "ABORT: No usable vector geometry was found in the project. "
+            "No SVG was created."
+        )
+
+        debug.finish()
+        diag.end()
+        return
+
     print_info("Writing SVG...")
     write_svg(project, output_file)
     diag.export_file(output_file)
     debug.save_svg(diag.debug_folder / output_file.name, "05_final.svg")
 
-    reports_folder = folder / "reports"
     reports_folder.mkdir(exist_ok=True)
 
     report.save(
