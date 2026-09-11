@@ -13,6 +13,7 @@ from complexity import analyse_complexity
 from geometry_chains import analyse as analyse_chains
 from geometry_statistics import analyse as geometry_statistics
 from topology import build_paths
+from black_engraving import process_black_engraving
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog
@@ -487,6 +488,8 @@ def process_project(
         removed_zero = remove_zero_length_lines(drawing)
         removed_duplicates = remove_duplicate_lines(drawing)
         build_paths(drawing)
+
+        process_black_engraving(drawing)
 
         report.cleanup(
             removed_zero,

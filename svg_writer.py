@@ -115,13 +115,33 @@ def _write_imported_path(parent, path):
     fill = path.fill_color
     previous_end = None
 
+    is_black_engraving = getattr(
+        path,
+        "is_black_engraving",
+        False,
+    )
+
     for obj in path:
 
-        if previous_end is None or not _same_point(obj.start, previous_end):
-            d.append(f"M {obj.start.x:.3f},{obj.start.y:.3f}")
+        # A new ring/subpath begins whenever the next segment does not
+        # connect to the previous segment.
+        if previous_end is None or not _same_point(
+            obj.start,
+            previous_end,
+        ):
+
+            # Finish the previous ring before starting the next one.
+            if is_black_engraving and previous_end is not None:
+                d.append("Z")
+
+            d.append(
+                f"M {obj.start.x:.3f},{obj.start.y:.3f}"
+            )
 
         if isinstance(obj, Line):
-            d.append(f"L {obj.end.x:.3f},{obj.end.y:.3f}")
+            d.append(
+                f"L {obj.end.x:.3f},{obj.end.y:.3f}"
+            )
             previous_end = obj.end
 
         elif isinstance(obj, Bezier):
@@ -134,7 +154,6 @@ def _write_imported_path(parent, path):
             previous_end = obj.end
 
     if getattr(path, "closed", False):
-        #print(f"Closing path {PATH_INDEX}")
         d.append("Z")
 
     attrs = {"d": " ".join(d)}

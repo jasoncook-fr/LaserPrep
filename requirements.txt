@@ -1,4 +1,5 @@
 lxml==6.1.1
 pymupdf==1.28.0
 pypdfium2==5.11.0
+shapely==2.1.2
 pyinstaller
