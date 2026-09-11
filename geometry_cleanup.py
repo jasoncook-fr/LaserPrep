@@ -40,7 +40,8 @@ class GeometryReport:
 
 def _line_key(line: Line):
     """
-    Return a canonical representation of a line.
+    Return a canonical representation of a line including its
+    laser-relevant stroke style.
 
     A→B and B→A produce exactly the same key.
     Coordinates are rounded to 0.001 mm.
@@ -56,10 +57,13 @@ def _line_key(line: Line):
         round(line.end.y, 3),
     )
 
-    if p1 <= p2:
-        return (p1, p2)
+    geometry = (p1, p2) if p1 <= p2 else (p2, p1)
 
-    return (p2, p1)
+    return (
+        geometry,
+        line.stroke_color,
+        line.stroke_width,
+    )
 
 def analyse(drawing: Drawing) -> GeometryReport:
 
