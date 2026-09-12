@@ -93,9 +93,8 @@ def import_text(drawing, pdf_file):
 
     analysis = analyze_svg(svg_file)
 
-    if analysis.mode == "GLYPH_REFERENCES":
-        _dbg("Glyph-based text detected.")
-        _dbg("Skipping text import.")
+    if analysis.mode in ("GLYPH_REFERENCES", "DIRECT_PATHS"):
+        _dbg(f"Text import skipped for {analysis.mode}.")
         return
 
     # --------------------------------------------------------

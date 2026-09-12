@@ -156,6 +156,12 @@ def import_svg_geometry(svg_filename):
         else:
             fill = _parse_colour(fill_attr_raw)
 
+        # LaserPrep uses black fills for engraving and white fills as
+        # subtraction/masking geometry (for example the owl's eyes and beak).
+        # Ignore other coloured PDF fills such as the Archicad watermark.
+        if fill is not None and fill not in ((0, 0, 0), (255, 255, 255)):
+            fill = None
+
         width = _parse_width(
             node.attrib.get("stroke-width")
         )
