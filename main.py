@@ -20,7 +20,7 @@ from tkinter import filedialog
 from text_import import import_text
 from pdf_reader import read_pdf
 from project import Project
-from svg_writer import write_svg
+from svg_writer import write_svg, write_bad_colors_svg
 from color_analysis import analyse_colors
 from colour_normalization import normalize_colours
 from diagnostics import diag
@@ -38,6 +38,8 @@ from config import (
     LARGE_USABLE_HEIGHT_MM,
     SMALL_USABLE_WIDTH_MM,
     SMALL_USABLE_HEIGHT_MM,
+    SUSPECT_SCALE_MAX_MM,
+    SUSPECT_SCALE_MIN_OBJECTS,
 )
 from debug_manager import DebugManager
 from config import DEBUG
@@ -396,6 +398,29 @@ def process_project(
 
         colors = analyse_colors(drawing)
 
+        if colors.unsupported:
+            bad_colors_file = folder / f"{pdf.stem}_bad_colors.svg"
+
+            write_bad_colors_svg(
+                drawing,
+                bad_colors_file,
+                set(colors.unsupported.keys()),
+            )
+
+        # ----------------------------------------------------
+        # Check for suspiciously small, highly detailed drawings
+        # ----------------------------------------------------
+
+        longest_dimension = max(
+            drawing.drawing_width,
+            drawing.drawing_height,
+        )
+
+        suspicious_scale = (
+            longest_dimension < SUSPECT_SCALE_MAX_MM
+            and complexity.object_count > SUSPECT_SCALE_MIN_OBJECTS
+        )
+
         # ----------------------------------------------------
         # Choose the best orientation
         # ----------------------------------------------------
@@ -473,6 +498,13 @@ def process_project(
 
         report.geometry(geometry)
         dev_report.geometry(geometry)
+
+        if suspicious_scale:
+            report.suspicious_scale(
+                drawing,
+                complexity.object_count,
+            )
+
         report.colours(colors)
         dev_report.colours(colors)
         # ----------------------------------------------------

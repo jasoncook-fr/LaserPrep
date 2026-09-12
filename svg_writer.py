@@ -241,10 +241,31 @@ def write_debug_svg(drawing, filename: Path):
         encoding="UTF-8",
     )
 
+def write_bad_colors_svg(drawing, filename, unsupported_colors):
+    """
+    Export only geometry using unsupported stroke colours.
 
+    No normalization or cleanup is applied.
+    """
 
+    root = _svg_root()
+    layer = _layer(root, drawing.name)
 
+    for path in drawing.paths:
+        stroke = getattr(path, "stroke_color", None)
 
+        if stroke not in unsupported_colors:
+            continue
 
+        _write_imported_path(layer, path)
 
+        # Make unsupported colours visually obvious in the diagnostic.
+        element = layer[-1]
+        element.set("stroke-width", "2.0")
 
+    ET.ElementTree(root).write(
+        str(filename),
+        pretty_print=True,
+        xml_declaration=True,
+        encoding="UTF-8",
+    )

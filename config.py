@@ -80,6 +80,11 @@ COMPLEXITY_HIGH_OBJECTS = 100000
 # to process. Files above this limit are rejected.
 COMPLEXITY_ABORT_OBJECTS = 250000
 
+# ============================================================
+# Suspiciously small / densely detailed PDF detection
+# ============================================================
+SUSPECT_SCALE_MAX_MM = 200.0
+SUSPECT_SCALE_MIN_OBJECTS = 2000
 
 # ============================================================
 # DIAGNOSTICS
