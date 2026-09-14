@@ -21,7 +21,8 @@ from project import Project
 
 SVG_NS = "http://www.w3.org/2000/svg"
 INK_NS = "http://www.inkscape.org/namespaces/inkscape"
-NSMAP = {None: SVG_NS, "inkscape": INK_NS}
+SODI_NS = "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+NSMAP = {None: SVG_NS, "inkscape": INK_NS, "sodipodi": SODI_NS}
 
 PATH_SEGMENT_LIMIT = 5000
 PATH_INDEX = 0
@@ -32,7 +33,7 @@ def _rgb_to_hex(col):
 
 
 def _svg_root():
-    return ET.Element(
+    root = ET.Element(
         "svg",
         nsmap=NSMAP,
         width=f"{LARGE_BED_WIDTH_MM}mm",
@@ -40,6 +41,24 @@ def _svg_root():
         viewBox=f"0 0 {LARGE_BED_WIDTH_MM} {LARGE_BED_HEIGHT_MM}",
         version="1.1",
     )
+
+    # Inkscape document display defaults: transparent page with checkerboard.
+    ET.SubElement(
+        root,
+        f"{{{SODI_NS}}}namedview",
+        {
+            "id": "namedview1",
+            "pagecolor": "#ffffff",
+            "bordercolor": "#666666",
+            "borderopacity": "1.0",
+            f"{{{INK_NS}}}pageopacity": "0.0",
+            f"{{{INK_NS}}}pageshadow": "2",
+            f"{{{INK_NS}}}pagecheckerboard": "1",
+            f"{{{INK_NS}}}deskcolor": "#d1d1d1",
+        },
+    )
+
+    return root
 
 
 def _layer(parent, name):
@@ -123,25 +142,14 @@ def _write_imported_path(parent, path):
 
     for obj in path:
 
-        # A new ring/subpath begins whenever the next segment does not
-        # connect to the previous segment.
-        if previous_end is None or not _same_point(
-            obj.start,
-            previous_end,
-        ):
-
-            # Finish the previous ring before starting the next one.
+        if previous_end is None or not _same_point(obj.start, previous_end):
             if is_black_engraving and previous_end is not None:
                 d.append("Z")
 
-            d.append(
-                f"M {obj.start.x:.3f},{obj.start.y:.3f}"
-            )
+            d.append(f"M {obj.start.x:.3f},{obj.start.y:.3f}")
 
         if isinstance(obj, Line):
-            d.append(
-                f"L {obj.end.x:.3f},{obj.end.y:.3f}"
-            )
+            d.append(f"L {obj.end.x:.3f},{obj.end.y:.3f}")
             previous_end = obj.end
 
         elif isinstance(obj, Bezier):
@@ -154,6 +162,7 @@ def _write_imported_path(parent, path):
             previous_end = obj.end
 
     if getattr(path, "closed", False):
+        #print(f"Closing path {PATH_INDEX}")
         d.append("Z")
 
     attrs = {"d": " ".join(d)}
@@ -168,13 +177,10 @@ def _write_imported_path(parent, path):
     if path.stroke_enabled and stroke is not None:
         attrs["stroke"] = _rgb_to_hex(stroke)
 
-        # Black strokes are engraving artwork. Preserve their effective
-        # source width. Other strokes retain the established hairline.
         if getattr(path, "preserve_stroke_width", False):
             attrs["stroke-width"] = f"{path.stroke_width:.3f}"
         else:
             attrs["stroke-width"] = f"{DISPLAY_STROKE_WIDTH_MM:.3f}"
-
         attrs["stroke-linecap"] = "round"
         attrs["stroke-linejoin"] = "round"
     else:
@@ -240,6 +246,15 @@ def write_debug_svg(drawing, filename: Path):
         xml_declaration=True,
         encoding="UTF-8",
     )
+
+
+
+
+
+
+
+
+
 
 def write_bad_colors_svg(drawing, filename, unsupported_colors):
     """

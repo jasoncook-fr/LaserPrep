@@ -407,6 +407,15 @@ def process_project(
                 set(colors.unsupported.keys()),
             )
 
+            # Remove unsupported-colour geometry from the official drawing.
+            unsupported = set(colors.unsupported.keys())
+
+            drawing.objects = [
+                obj
+                for obj in drawing.objects
+                if obj.stroke_color not in unsupported
+            ]
+
         # ----------------------------------------------------
         # Check for suspiciously small, highly detailed drawings
         # ----------------------------------------------------
