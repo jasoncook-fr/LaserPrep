@@ -176,7 +176,11 @@ def _ring_segments(coords, import_order: int) -> list[Line]:
     return segments
 
 
-def _path_from_polygon(polygon: Polygon, import_order: int) -> Path:
+def _path_from_polygon(
+    polygon: Polygon,
+    import_order: int,
+    is_text: bool = False,
+) -> Path:
     """
     Convert a Shapely Polygon to one LaserPrep Path.
 
@@ -199,7 +203,7 @@ def _path_from_polygon(polygon: Polygon, import_order: int) -> Path:
         stroke_width=0.01,
         stroke_enabled=False,
         fill_enabled=True,
-        is_text=False,
+        is_text=is_text,
         import_order=import_order,
     )
 
@@ -232,7 +236,11 @@ def process_black_engraving(drawing) -> dict[str, int]:
     black_paths = [
         path
         for path in original_paths
-        if _is_black(path) and not getattr(path, "is_text", False)
+        if _is_black(path)
+        and (
+            not getattr(path, "is_text", False)
+            or getattr(path, "is_direct_text", False)
+        )
     ]
 
     white_paths = [
@@ -246,27 +254,35 @@ def process_black_engraving(drawing) -> dict[str, int]:
     black_geometry = None
     for path in black_paths:
         geometry = _path_geometry(path)
+
         if geometry is None or geometry.is_empty:
+            empty += 1
             continue
+
         black_geometry = (
             geometry
             if black_geometry is None
             else black_geometry.union(geometry)
         )
 
-    white_geometry = None
-    for path in white_paths:
-        geometry = _path_geometry(path)
-        if geometry is None or geometry.is_empty:
-            continue
-        white_geometry = (
-            geometry
-            if white_geometry is None
-            else white_geometry.union(geometry)
-        )
+    # Apply white geometry as local knockouts.  A large white background
+    # polygon may contain the entire black drawing; that is not a knockout
+    # and must be ignored.  Smaller white shapes that cut into the black
+    # artwork remain true transparent holes.
+    if black_geometry is not None:
+        for path in white_paths:
+            geometry = _path_geometry(path)
 
-    if black_geometry is not None and white_geometry is not None:
-        black_geometry = black_geometry.difference(white_geometry)
+            if geometry is None or geometry.is_empty:
+                continue
+
+            if geometry.covers(black_geometry):
+                continue
+
+            black_geometry = black_geometry.difference(geometry)
+
+            if black_geometry.is_empty:
+                break
 
     # Remove every processed black fill, then put the boolean result back
     # at the position of the first processed black path.  This preserves
@@ -275,8 +291,17 @@ def process_black_engraving(drawing) -> dict[str, int]:
     remaining = [path for path in original_paths if id(path) not in processed_ids]
 
     result_paths = list(_polygon_parts(black_geometry)) if black_geometry is not None else []
+    generated_is_text = any(
+        getattr(path, "is_text", False)
+        for path in black_paths
+    )
+
     generated = [
-        _path_from_polygon(polygon, import_order=black_paths[0].import_order if black_paths else 0)
+        _path_from_polygon(
+            polygon,
+            import_order=black_paths[0].import_order if black_paths else 0,
+            is_text=generated_is_text,
+        )
         for polygon in result_paths
         if polygon.area > AREA_EPSILON
     ]

@@ -12,7 +12,7 @@ from config import COLOUR_TOLERANCE
 # Perceptual colour matching.
 # RGB tolerance handles colours very close to an official value.
 # Hue matching handles clearly identifiable but darker/lighter variants.
-HUE_TOLERANCE = 12.0
+HUE_TOLERANCE = 15.0
 MIN_SATURATION = 35.0
 
 # ============================================================

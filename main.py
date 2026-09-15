@@ -449,7 +449,6 @@ def process_project(
             DISPLAY_OFFSET_X_MM,
             DISPLAY_OFFSET_Y_MM,
         )
-
         # ----------------------------------------------------
         # Validation report
         # ----------------------------------------------------
@@ -591,6 +590,7 @@ def process_project(
         return
 
     print_info("Writing SVG...")
+
     write_svg(project, output_file)
     diag.export_file(output_file)
     debug.save_svg(diag.debug_folder / output_file.name, "05_final.svg")

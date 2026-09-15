@@ -20,6 +20,7 @@ import re
 from drawing import Line, Bezier
 from svg_transform import AffineTransform
 from svg_path_parser import parse_svg_path
+from laser_palette import snap_colour
 
 SVG_NS = "{http://www.w3.org/2000/svg}"
 
@@ -114,14 +115,26 @@ def import_svg_geometry(svg_filename):
 
     drawing_id = 0
 
-    def _artwork_paths(node, inside_clip=False):
-        inside_clip = inside_clip or _strip(node.tag) == "clipPath"
+    def _artwork_paths(node, inside_non_artwork=False):
 
-        if _strip(node.tag) == "path" and not inside_clip:
+        tag = _strip(node.tag)
+
+        # Definitions and clipping geometry are not visible artwork.
+        # In particular, MuPDF may place font glyph definitions inside
+        # <defs>. Those paths must never be imported as drawing geometry.
+        inside_non_artwork = (
+            inside_non_artwork
+            or tag in ("defs", "clipPath")
+        )
+
+        if tag == "path" and not inside_non_artwork:
             yield node
 
         for child in node:
-            yield from _artwork_paths(child, inside_clip)
+            yield from _artwork_paths(
+                child,
+                inside_non_artwork,
+            )
 
     for node in _artwork_paths(root):
 
@@ -151,15 +164,26 @@ def import_svg_geometry(svg_filename):
         # Black in the source artwork is engraving artwork. MuPDF may omit
         # the fill attribute because black is SVG's default fill.
         fill_attr_raw = node.attrib.get("fill")
+
         if fill_attr_raw is None and stroke is None:
             fill = (0, 0, 0)
         else:
             fill = _parse_colour(fill_attr_raw)
 
+        # Normalize near-official fill colours before deciding whether
+        # the fill is meaningful.
+        #
+        # This is important because MuPDF may export black PDF artwork
+        # as a slightly tinted colour such as #080606 rather than #000000.
+        # LaserPrep's colour palette already defines how near-colours
+        # should be snapped.
+        if fill is not None:
+            fill = snap_colour(fill)
+
         # LaserPrep uses black fills for engraving and white fills as
         # subtraction/masking geometry (for example the owl's eyes and beak).
         # Ignore other coloured PDF fills such as the Archicad watermark.
-        if fill is not None and fill not in ((0, 0, 0), (255, 255, 255)):
+        if fill not in ((0, 0, 0), (255, 255, 255), None):
             fill = None
 
         width = _parse_width(
@@ -172,15 +196,20 @@ def import_svg_geometry(svg_filename):
         # MuPDF's stroke-width is expressed before the SVG transform.
         # Convert it to the effective width after the transform.
         stroke_scale = 1.0
+
         matrix_match = re.search(
             r"matrix\(\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*,"
             r"\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)",
             transform_text,
         )
+
         if matrix_match:
+
             ma, mb, mc, md = (
-                float(value) for value in matrix_match.groups()
+                float(value)
+                for value in matrix_match.groups()
             )
+
             sx = (ma * ma + mb * mb) ** 0.5
             sy = (mc * mc + md * md) ** 0.5
 

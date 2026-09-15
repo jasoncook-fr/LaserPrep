@@ -77,6 +77,7 @@ def import_text(drawing, pdf_file):
         _dbg(f"{span.text} ({span.font}, {span.size:.1f} pt)")
 
     _dbg()
+
     text_to_paths(
         pdf_file,
         svg_file,
@@ -93,7 +94,10 @@ def import_text(drawing, pdf_file):
 
     analysis = analyze_svg(svg_file)
 
-    if analysis.mode in ("GLYPH_REFERENCES", "DIRECT_PATHS"):
+    # GLYPH_REFERENCES use SVG <symbol>/<use> structures and are
+    # handled elsewhere. DIRECT_PATHS, however, are already real
+    # text outlines and must be imported normally.
+    if analysis.mode == "GLYPH_REFERENCES":
         _dbg(f"Text import skipped for {analysis.mode}.")
         return
 
@@ -156,7 +160,6 @@ def import_text(drawing, pdf_file):
             f"size={group.width:.2f} x {group.height:.2f}"
         )
 
-
     if artifact_groups:
 
         _dbg(
@@ -166,13 +169,13 @@ def import_text(drawing, pdf_file):
 
         for group in artifact_groups:
 
-                _dbg(
-                    f"Removing watermark group: "
-                    f"{len(group.paths)} glyphs | "
-                    f"{group.width:.2f} × {group.height:.2f} mm | "
-                    f"Bounds=({group.left:.2f}, {group.top:.2f}) "
-                    f"({group.right:.2f}, {group.bottom:.2f})"
-                )
+            _dbg(
+                f"Removing watermark group: "
+                f"{len(group.paths)} glyphs | "
+                f"{group.width:.2f} × {group.height:.2f} mm | "
+                f"Bounds=({group.left:.2f}, {group.top:.2f}) "
+                f"({group.right:.2f}, {group.bottom:.2f})"
+            )
 
         text_paths = remove_watermarks(
             text_paths,
@@ -191,10 +194,13 @@ def import_text(drawing, pdf_file):
     # --------------------------------------------------------
     # Merge into Drawing
     # --------------------------------------------------------
+
     for path in text_paths:
+
         left, top, right, bottom = path.bounds
 
         if left < 20 and bottom > page_height - 5:
+
             _dbg(
                 f"WARNING: path at ({left:.2f}, {top:.2f}) "
                 f"({right:.2f}, {bottom:.2f})"
@@ -216,10 +222,3 @@ def import_text(drawing, pdf_file):
     _dbg(f"Imported objects : {object_count}")
 
     _dbg()
-
-
-
-
-
-
-
