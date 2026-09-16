@@ -7,6 +7,7 @@ Version 0.5
 """
 import hashlib
 import json
+import shutil
 import fitz
 from batch_alerts import BatchAlerts
 from complexity import analyse_complexity
@@ -45,6 +46,11 @@ from debug_manager import DebugManager
 from config import DEBUG
 from report import Report
 from report_dev import DeveloperReport
+from collinear_overlap_diagnostic import (
+    analyse_collinear_overlap,
+    format_report as format_collinear_overlap_report,
+    export_debug_svg as export_collinear_overlap_debug_svg,
+)
 
 # ============================================================
 # Terminal Output Colors
@@ -206,6 +212,48 @@ def save_processing_state(folder: Path, pdf_hashes: dict[str, str]) -> None:
             sort_keys=True,
         )
 
+def cleanup_warning_outputs(folder: Path) -> None:
+    """Remove stale LaserPrep warning SVGs before processing a project.
+
+    Geometry-overlap warnings and unsupported-colour previews are generated
+    fresh for each processing run. Old copies must not remain and be mistaken
+    for the current result.
+
+    Bad-colour previews are kept in the project's reports/ folder.
+    """
+    reports_folder = folder / "reports"
+    reports_folder.mkdir(parents=True, exist_ok=True)
+
+    files_to_remove = []
+
+    # Old bad-colour previews may have been written in the project root by
+    # earlier versions of LaserPrep. Remove them from there.
+    files_to_remove.extend(folder.glob("*_bad_colors.svg"))
+
+    # Current/future bad-colour previews belong in the report dossier.
+    files_to_remove.extend(reports_folder.glob("*_bad_colors.svg"))
+
+    # Remove all previous geometry-overlap warning visualizations from the
+    # report dossier. Also clean the project root in case an older version
+    # placed them there.
+    files_to_remove.extend(reports_folder.glob("Geometry_Overlap_Warning*.svg"))
+    files_to_remove.extend(folder.glob("Geometry_Overlap_Warning*.svg"))
+
+    seen = set()
+
+    for path in files_to_remove:
+        if path in seen:
+            continue
+        seen.add(path)
+
+        if path.is_file():
+            try:
+                path.unlink()
+                print_info(f"Removed old warning file: {path}")
+            except OSError as exc:
+                print_warning(f"Could not remove old warning file {path}: {exc}")
+
+
 def process_project(
     folder: Path,
     alerts: BatchAlerts | None = None,
@@ -231,10 +279,16 @@ def process_project(
             print_info(f"Skipping unchanged project: {folder}")
             return
 
+    # Remove stale student-facing warning previews before generating this run.
+    cleanup_warning_outputs(folder)
+
+    reports_folder = folder / "reports"
+
     project = Project(folder.name)
     report = Report()
     processing_failed = False
     dev_report = DeveloperReport()
+    collinear_warning_svgs = []
 
     debug = DebugManager(
         DEBUG,
@@ -361,6 +415,45 @@ def process_project(
         build_paths(drawing)
 
         # ----------------------------------------------------
+        # Diagnostic: collinear redundant geometry
+        # ----------------------------------------------------
+        #
+        # Run immediately after PDF geometry import/path construction.
+        # This is diagnostic-only: it never modifies the drawing.
+        #
+        # This replaces the old O(n²) near-parallel scan as our first
+        # production-safe investigation of the Zambala-type problem.
+        collinear_result = analyse_collinear_overlap(drawing)
+        report.collinear_overlap(collinear_result)
+
+        overlap_debug_svg = (
+            folder / ".laserprep" / "debug" /
+            f"{pdf.stem}_03_collinear_overlap.svg"
+        )
+        export_collinear_overlap_debug_svg(
+            collinear_result,
+            overlap_debug_svg,
+        )
+        debug.save_text(
+            f"{pdf.stem}_03_collinear_overlap.txt",
+            format_collinear_overlap_report(collinear_result),
+        )
+
+        if collinear_result["non_exact_groups"]:
+            collinear_warning_svgs.append(overlap_debug_svg)
+
+            if alerts is not None:
+                alerts.warning(
+                    project.name,
+                    pdf.name,
+                    (
+                        "Potential geometry overlap detected: "
+                        f"{collinear_result['non_exact_groups']} groups. "
+                        "See the Geometry_Overlap_Warning file in the project reports."
+                    ),
+                )
+
+        # ----------------------------------------------------
         # Reject PDFs that produced no usable vector geometry
         # ----------------------------------------------------
 
@@ -399,7 +492,7 @@ def process_project(
         colors = analyse_colors(drawing)
 
         if colors.unsupported:
-            bad_colors_file = folder / f"{pdf.stem}_bad_colors.svg"
+            bad_colors_file = reports_folder / f"{pdf.stem}_bad_colors.svg"
 
             write_bad_colors_svg(
                 drawing,
@@ -565,8 +658,20 @@ def process_project(
 
     output_file = folder / f"{project.name}.svg"
 
-    reports_folder = folder / "reports"
-    reports_folder.mkdir(exist_ok=True)
+    # Preserve the student-facing geometry warning visualization in the
+    # permanent project reports folder. One file per source PDF avoids
+    # collisions in multi-PDF projects.
+    for overlap_debug_svg in collinear_warning_svgs:
+        pdf_stem = overlap_debug_svg.name.removesuffix("_03_collinear_overlap.svg")
+        target_name = (
+            "Geometry_Overlap_Warning.svg"
+            if len(pdf_files) == 1
+            else f"Geometry_Overlap_Warning - {pdf_stem}.svg"
+        )
+        shutil.copy2(
+            overlap_debug_svg,
+            reports_folder / target_name,
+        )
 
     # Do not create an empty SVG when no PDF produced usable geometry.
     if not project.drawings:
@@ -594,8 +699,6 @@ def process_project(
     write_svg(project, output_file)
     diag.export_file(output_file)
     debug.save_svg(diag.debug_folder / output_file.name, "05_final.svg")
-
-    reports_folder.mkdir(exist_ok=True)
 
     report.save(
         reports_folder / f"{project.name}.base_report.txt",

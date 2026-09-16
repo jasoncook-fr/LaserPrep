@@ -56,38 +56,36 @@ class Report:
         if getattr(g,"tiny_lines",0):
             self.current["warnings"].append(f"{g.tiny_lines} tiny segments detected.")
 
+    def collinear_overlap(self, result):
+        self._ensure()
+        groups = result.get("non_exact_groups", 0)
+        if groups:
+            if self.current["status"] == "PASS":
+                self.current["status"] = "WARNING"
+            self.current["warnings"].append(
+                f"Potential geometry overlap: {groups} groups detected. "
+                "See Geometry_Overlap_Warning.svg in the project reports."
+            )
+
     def suspicious_scale(self, drawing, object_count):
         self._ensure()
-
         self.current["status"] = (
-            "WARNING"
-            if self.current["status"] == "PASS"
-            else self.current["status"]
+            "WARNING" if self.current["status"] == "PASS" else self.current["status"]
         )
-
         self.current["warnings"].append(
-            f"⚠️ Suspicious scale: "
-            f"drawing is {drawing.drawing_width:.2f} × "
-            f"{drawing.drawing_height:.2f} mm "
-            f"with {object_count} vector objects. "
-            "This may indicate an incorrect PDF export scale. "
-            "Please verify the original drawing size."
+            f"⚠️ Suspicious scale: drawing is {drawing.drawing_width:.2f} × "
+            f"{drawing.drawing_height:.2f} mm with {object_count} vector objects. "
+            "This may indicate an incorrect PDF export scale. Please verify the original drawing size."
         )
 
     def colours(self, colors):
         self._ensure()
-
         if colors.unsupported:
-
             self.current["status"] = "REJECTED"
-
             for rgb, count in sorted(colors.unsupported.items()):
-
                 colour = "#{:02X}{:02X}{:02X}".format(*rgb)
-
                 self.current["alerts"].append(
-                    f"Unsupported colour {colour} "
-                    f"({count} objects)."
+                    f"Unsupported colour {colour} ({count} objects)."
                 )
 
     def cleanup(self,zero,dup,col):
@@ -111,7 +109,6 @@ class Report:
             self.current=None
 
         total_objects=sum(f["objects"] for f in self.files)
-
         rejected=sum(f["status"]=="REJECTED" for f in self.files)
         warnings=sum(bool(f["warnings"]) for f in self.files)
         passed=sum(f["status"]=="PASS" and not f["warnings"] for f in self.files)
@@ -152,13 +149,7 @@ class Report:
 
         out.extend(["","FILES","-"*60])
         for f in self.files:
-            icon = {
-                "PASS": "✅",
-                "WARNING": "⚠️",
-                "REJECTED": "❌",
-            }[f["status"]]
+            icon = {"PASS":"✅","WARNING":"⚠️","REJECTED":"❌"}[f["status"]]
             out.append(f"{icon} {f['name']} ({f['objects']} objects)")
 
         Path(path).write_text("\n".join(out),encoding="utf-8")
-
-

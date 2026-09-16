@@ -48,6 +48,15 @@ class DeveloperReport:
         self.line("Zero-length lines", geometry.zero_length_lines)
         self.line("Tiny segments", geometry.tiny_lines)
         self.line("Duplicate lines", geometry.duplicate_lines)
+        self.line(
+            "Near-parallel pairs",
+            geometry.near_parallel_pairs,
+        )
+
+        self.line(
+            "Near-parallel groups",
+            geometry.near_parallel_groups,
+        )
         if geometry.shortest_line_mm is not None:
             self.line("Shortest segment", f"{geometry.shortest_line_mm:.6f} mm")
 
