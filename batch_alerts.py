@@ -1,130 +1,101 @@
-"""
-batch_alerts.py
+"""Batch-level administrative reporting.
 
-Collect important warnings and aborts produced during
-Batch Mode processing.
+The individual Report is the source of truth. This class receives the final
+result for each PDF and presents only operator-relevant information.
 
-Version 1.0
+Version 1.1
 """
 
 
 class BatchAlerts:
-
     def __init__(self):
-        self.aborts = []
-        self.warnings = []
+        self.results = []
 
-    # ========================================================
-    # Public API
-    # ========================================================
-
-    def abort(
-        self,
-        project: str,
-        pdf: str,
-        message: str,
-    ) -> None:
-        self.aborts.append(
-            (project, pdf, message)
+    def result(self, project: str, pdf: str, report_entry: dict) -> None:
+        """Record a snapshot of the final Report result for one PDF."""
+        self.results.append(
+            {
+                "project": project,
+                "pdf": pdf,
+                "status": report_entry.get("status", "PASS"),
+                "warnings": list(report_entry.get("warnings", [])),
+                "alerts": list(report_entry.get("alerts", [])),
+            }
         )
-
-    def warning(
-        self,
-        project: str,
-        pdf: str,
-        message: str,
-    ) -> None:
-        self.warnings.append(
-            (project, pdf, message)
-        )
-
-    # ========================================================
-    # Save
-    # ========================================================
 
     def save(self, folder) -> None:
+        rejected = [
+            r for r in self.results if r["status"] == "REJECTED"
+        ]
+        warnings = [
+            r for r in self.results if r["status"] == "WARNING"
+        ]
+        accepted = [
+            r for r in self.results if r["status"] == "PASS"
+        ]
 
-        report_lines = []
+        lines = [
+            "=" * 60 + "\n",
+            "LaserPrep Batch Report\n",
+            "=" * 60 + "\n\n",
+            "SUMMARY\n",
+            "-" * 60 + "\n",
+            f"Accepted : {len(accepted)}\n",
+            f"Warnings : {len(warnings)}\n",
+            f"Rejected : {len(rejected)}\n",
+            "\n",
+            "❌ REJECTED\n",
+            "-" * 60 + "\n",
+        ]
 
-        report_lines.append("=" * 60 + "\n")
-        report_lines.append("LaserPrep Batch Report\n")
-        report_lines.append("=" * 60 + "\n\n")
+        if rejected:
+            for result in rejected:
+                lines.append(f"{result['project']}\n")
+                lines.append(f"    {result['pdf']}\n")
 
-        # ------------------------------------------------
-        # Aborts
-        # ------------------------------------------------
+                for message in result["alerts"]:
+                    for line in str(message).splitlines():
+                        lines.append(f"    {line}\n")
 
-        report_lines.append("ABORTS\n")
-        report_lines.append("-" * 60 + "\n")
+                # Keep any additional warnings visible on a rejected file.
+                for message in result["warnings"]:
+                    for line in str(message).splitlines():
+                        lines.append(f"    ⚠️ {line}\n")
 
-        if self.aborts:
-
-            for project, pdf, message in self.aborts:
-                report_lines.append(f"{project}\n")
-                report_lines.append(f"    {pdf}\n")
-                report_lines.append(f"    {message}\n\n")
-
+                lines.append("\n")
         else:
+            lines.append("None\n\n")
 
-            report_lines.append("None\n\n")
+        lines.extend([
+            "⚠️ WARNINGS\n",
+            "-" * 60 + "\n",
+        ])
 
-        # ------------------------------------------------
-        # Warnings
-        # ------------------------------------------------
+        if warnings:
+            for result in warnings:
+                lines.append(f"{result['project']}\n")
+                lines.append(f"    {result['pdf']}\n")
 
-        report_lines.append("WARNINGS\n")
-        report_lines.append("-" * 60 + "\n")
+                for message in result["warnings"]:
+                    for line in str(message).splitlines():
+                        lines.append(f"    • {line}\n")
 
-        if self.warnings:
-
-            for project, pdf, message in self.warnings:
-                report_lines.append(f"{project}\n")
-                report_lines.append(f"    {pdf}\n")
-                report_lines.append(f"    {message}\n\n")
-
+                lines.append("\n")
         else:
+            lines.append("None\n")
 
-            report_lines.append("None\n")
-
-        report = "".join(report_lines)
-
-        # ------------------------------------------------
-        # Administrative report directories
-        # ------------------------------------------------
+        report = "".join(lines)
 
         folder.mkdir(parents=True, exist_ok=True)
 
         history_folder = folder / "BATCH_REPORTS"
         history_folder.mkdir(parents=True, exist_ok=True)
 
-        # ------------------------------------------------
-        # Current report
-        # ------------------------------------------------
-
         current_report = folder / "CURRENT_BATCH_REPORT.txt"
-
-        with current_report.open(
-            "w",
-            encoding="utf-8",
-        ) as f:
-            f.write(report)
-
-        # ------------------------------------------------
-        # Historical report
-        # ------------------------------------------------
+        current_report.write_text(report, encoding="utf-8")
 
         from datetime import datetime
 
-        timestamp = datetime.now().strftime(
-            "%Y-%m-%d_%H-%M-%S"
-        )
-
-        historical_report = (
-            history_folder / f"{timestamp}.txt"
-        )
-
-        with historical_report.open(
-            "w",
-            encoding="utf-8",
-        ) as f:
-            f.write(report)
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        historical_report = history_folder / f"{timestamp}.txt"
+        historical_report.write_text(report, encoding="utf-8")

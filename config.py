@@ -81,7 +81,14 @@ SOFTWARE_STAMP_MAX_HEIGHT_MM = 4.5
 # parallel, physically close, and substantially overlapping.
 # These values are diagnostic thresholds only; no geometry is
 # automatically modified by this detector.
-COLLINEAR_ANGLE_TOLERANCE_DEG = 0.10
-COLLINEAR_SEPARATION_TOLERANCE_MM = 0.10
+COLLINEAR_ANGLE_TOLERANCE_DEG = 0.50
+COLLINEAR_SEPARATION_TOLERANCE_MM = 0.50
 COLLINEAR_MIN_SEGMENT_LENGTH_MM = 1.00
-COLLINEAR_MIN_OVERLAP_RATIO = 0.90
+COLLINEAR_MIN_OVERLAP_RATIO = 0.80
+# ------------------------------------------------------------
+# Collinear / redundant geometry warning thresholds
+# ------------------------------------------------------------
+# Number of non-exact overlap groups before a warning is issued.
+COLLINEAR_OVERLAP_WARNING_GROUPS = 100
+# Number of non-exact overlap groups at which the file is rejected.
+COLLINEAR_OVERLAP_REJECT_GROUPS = 500

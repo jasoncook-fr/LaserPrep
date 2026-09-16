@@ -38,6 +38,21 @@ LINE_OFFSET_TOL_MM = COLLINEAR_SEPARATION_TOLERANCE_MM
 MIN_SEGMENT_LENGTH_MM = COLLINEAR_MIN_SEGMENT_LENGTH_MM
 MIN_OVERLAP_RATIO = COLLINEAR_MIN_OVERLAP_RATIO
 
+# Secondary test for redundant geometry split into nearly identical fragments.
+# The normal test above remains strict; this only applies when both endpoints
+# of the two segments are also very close.
+FRAGMENTED_MIN_OVERLAP_RATIO = 0.50
+FRAGMENTED_ENDPOINT_TOL_MM = 0.25
+
+# Fragmented matches only create a suspicious group when there is more
+# than one connected fragmented relationship. This keeps a single
+# 50%-overlap coincidence from becoming a group by itself, while still
+# catching redundant edges represented by several slightly different
+# fragments.
+FRAGMENTED_COMPONENT_MIN_EDGES = 2
+
+ENDPOINT_TOL_MM = 0.10
+
 
 def _line_length(line: Line) -> float:
     return math.hypot(
@@ -75,6 +90,19 @@ def _segment_data(line: Line):
     }
 
 
+def _endpoint_match_distance(a: Line, b: Line) -> float:
+    """Return the best worst-case endpoint distance, accounting for reversal."""
+    direct = max(
+        math.hypot(a.start.x - b.start.x, a.start.y - b.start.y),
+        math.hypot(a.end.x - b.end.x, a.end.y - b.end.y),
+    )
+    reversed_ = max(
+        math.hypot(a.start.x - b.end.x, a.start.y - b.end.y),
+        math.hypot(a.end.x - b.start.x, a.end.y - b.start.y),
+    )
+    return min(direct, reversed_)
+
+
 def _angle_difference(a: float, b: float) -> float:
     d = abs(a - b) % math.pi
     if d > math.pi / 2:
@@ -103,15 +131,33 @@ def analyse_collinear_overlap(drawing: Drawing) -> dict:
     buckets = defaultdict(list)
 
     for i, item in enumerate(data):
-        angle_bin = round(
-            math.degrees(item["theta"]) / ANGLE_BIN_DEG
-        )
-        offset_bin = round(
-            item["c"] / OFFSET_BIN_MM
-        )
-        buckets[
-            (item["line"].stroke_color, angle_bin, offset_bin)
-        ].append(i)
+        angle_deg = math.degrees(item["theta"])
+        angle_bin = round(angle_deg / ANGLE_BIN_DEG)
+
+        # The supporting-line offset ``c`` in _segment_data() is measured
+        # using each line's own angle.  That is geometrically correct for the
+        # final separation test, but it is NOT a stable bucket coordinate:
+        # even a 0.3° angle difference can shift c by several millimetres
+        # when the drawing is hundreds of millimetres from the origin.
+        #
+        # Use a common reference angle for each bucket instead.  Each line is
+        # inserted into the three nearby angle bins, with c recomputed using
+        # that bin's centre angle.  Lines that are genuinely near-parallel
+        # therefore land in the same offset bucket even when their individual
+        # angles differ slightly.
+        for target_angle_bin in (angle_bin - 1, angle_bin, angle_bin + 1):
+            ref_theta = math.radians(target_angle_bin * ANGLE_BIN_DEG)
+            ref_nx = -math.sin(ref_theta)
+            ref_ny = math.cos(ref_theta)
+            ref_c = (
+                ref_nx * item["line"].start.x
+                + ref_ny * item["line"].start.y
+            )
+            offset_bin = round(ref_c / OFFSET_BIN_MM)
+
+            buckets[
+                (item["line"].stroke_color, target_angle_bin, offset_bin)
+            ].append(i)
 
     overlap_pairs = []
     seen_pairs = set()
@@ -202,7 +248,25 @@ def analyse_collinear_overlap(drawing: Drawing) -> dict:
                 shorter = min(s["length"], t["length"])
                 overlap_ratio = overlap / shorter
 
-                if overlap_ratio < MIN_OVERLAP_RATIO:
+                pair_type = None
+                endpoint_match_mm = None
+
+                if overlap_ratio >= MIN_OVERLAP_RATIO:
+                    pair_type = "normal"
+                elif overlap_ratio >= FRAGMENTED_MIN_OVERLAP_RATIO:
+                    # A lower overlap threshold is deliberately allowed only
+                    # when the two Line objects have matching endpoints. This
+                    # catches the common case where the same physical edge was
+                    # exported twice as slightly different line fragments,
+                    # without globally treating ordinary partial crossings as
+                    # redundant.
+                    endpoint_match_mm = _endpoint_match_distance(
+                        s["line"], t["line"]
+                    )
+                    if endpoint_match_mm <= FRAGMENTED_ENDPOINT_TOL_MM:
+                        pair_type = "fragmented"
+
+                if pair_type is None:
                     continue
 
                 seen_pairs.add(pair_key)
@@ -213,20 +277,70 @@ def analyse_collinear_overlap(drawing: Drawing) -> dict:
                     "overlap_ratio": overlap_ratio,
                     "separation_mm": separation,
                     "angle_deg": angle_deg,
+                    "pair_type": pair_type,
+                    "endpoint_match_mm": endpoint_match_mm,
                 })
 
-                union(j, idx)
+                # Normal pairs are always part of the grouping graph.
+                # Fragmented pairs are admitted later, after we know whether
+                # they form a connected fragmented structure.
+                if pair_type == "normal":
+                    union(j, idx)
 
-                # A segment is "contained" when the overlap is at least 80%
-                # of its own length.
-                if data[j]["length"] <= data[idx]["length"]:
-                    if overlap / data[j]["length"] >= MIN_OVERLAP_RATIO:
-                        contained_segments.add(j)
-                else:
-                    if overlap / data[idx]["length"] >= MIN_OVERLAP_RATIO:
-                        contained_segments.add(idx)
+                # A segment is "contained" only under the normal strict
+                # overlap rule. Fragmented matches are suspicious, but neither
+                # segment is considered contained.
+                if pair_type == "normal":
+                    if data[j]["length"] <= data[idx]["length"]:
+                        if overlap / data[j]["length"] >= MIN_OVERLAP_RATIO:
+                            contained_segments.add(j)
+                    else:
+                        if overlap / data[idx]["length"] >= MIN_OVERLAP_RATIO:
+                            contained_segments.add(idx)
 
             active.append(idx)
+
+    # Fragmented matches are useful when they form a run of at least two
+    # relationships. A single fragmented pair is intentionally ignored for
+    # grouping because it is too easy for an ordinary partial coincidence
+    # to trigger a suspicious group.
+    fragmented_parent = list(range(len(data)))
+
+    def fragmented_find(a):
+        while fragmented_parent[a] != a:
+            fragmented_parent[a] = fragmented_parent[fragmented_parent[a]]
+            a = fragmented_parent[a]
+        return a
+
+    def fragmented_union(a, b):
+        ra, rb = fragmented_find(a), fragmented_find(b)
+        if ra == rb:
+            return
+        fragmented_parent[rb] = ra
+
+    fragmented_pair_indices = []
+    for pair_index, pair in enumerate(overlap_pairs):
+        if pair.get("pair_type") != "fragmented":
+            continue
+        a = pair["a"]
+        b = pair["b"]
+        fragmented_union(a, b)
+        fragmented_pair_indices.append(pair_index)
+
+    fragmented_components = defaultdict(list)
+    for pair_index in fragmented_pair_indices:
+        pair = overlap_pairs[pair_index]
+        root = fragmented_find(pair["a"])
+        fragmented_components[root].append(pair_index)
+
+    accepted_fragmented_pairs = 0
+    for pair_indices in fragmented_components.values():
+        if len(pair_indices) < FRAGMENTED_COMPONENT_MIN_EDGES:
+            continue
+        for pair_index in pair_indices:
+            pair = overlap_pairs[pair_index]
+            union(pair["a"], pair["b"])
+            accepted_fragmented_pairs += 1
 
     components = defaultdict(list)
     for i in range(len(data)):
@@ -245,7 +359,7 @@ def analyse_collinear_overlap(drawing: Drawing) -> dict:
     exact_duplicate_pairs = 0
     non_exact_groups = []
 
-    def same_endpoints(a: Line, b: Line, tol=0.001):
+    def same_endpoints(a: Line, b: Line, tol=ENDPOINT_TOL_MM):
         direct = (
             math.hypot(a.start.x - b.start.x, a.start.y - b.start.y)
             <= tol
@@ -276,6 +390,7 @@ def analyse_collinear_overlap(drawing: Drawing) -> dict:
                 if not same_endpoints(
                     data[a]["line"],
                     data[b]["line"],
+                    tol=ENDPOINT_TOL_MM,
                 ):
                     has_non_exact = True
                     break
@@ -283,6 +398,25 @@ def analyse_collinear_overlap(drawing: Drawing) -> dict:
                 break
         if has_non_exact:
             non_exact_groups.append(group)
+
+    # Measure how much of the analysed geometry is actually involved in
+    # non-exact overlap. This is more useful than the raw group count alone.
+    non_exact_line_indices = {
+        idx
+        for group in non_exact_groups
+        for idx in group
+    }
+    non_exact_line_segments = len(non_exact_line_indices)
+    non_exact_line_ratio = (
+        non_exact_line_segments / len(data)
+        if data else 0.0
+    )
+
+    total_overlap_length_mm = sum(
+        pair["overlap_mm"] for pair in overlap_pairs
+    )
+    normal_pairs = sum(1 for pair in overlap_pairs if pair.get("pair_type") == "normal")
+    fragmented_pairs = sum(1 for pair in overlap_pairs if pair.get("pair_type") == "fragmented")
 
     by_colour = defaultdict(lambda: {
         "pairs": 0,
@@ -306,10 +440,18 @@ def analyse_collinear_overlap(drawing: Drawing) -> dict:
         "line_segments": len(data),
         "candidate_buckets": len(buckets),
         "overlap_pairs": len(overlap_pairs),
+        "normal_pairs": normal_pairs,
+        "fragmented_pairs": fragmented_pairs,
+        "accepted_fragmented_pairs": accepted_fragmented_pairs,
+        "fragmented_component_min_edges": FRAGMENTED_COMPONENT_MIN_EDGES,
+        "overlap_pair_details": overlap_pairs,
         "contained_segments": len(contained_segments),
         "groups": len(groups),
         "non_exact_groups": len(non_exact_groups),
         "non_exact_group_indices": non_exact_groups,
+        "non_exact_line_segments": non_exact_line_segments,
+        "non_exact_line_ratio": non_exact_line_ratio,
+        "total_overlap_length_mm": total_overlap_length_mm,
         "data": data,
         "max_stack_depth": stack_depth,
         "exact_duplicate_pairs": exact_duplicate_pairs,
@@ -400,6 +542,12 @@ def export_debug_svg(result: dict, path, include_all_lines=True) -> None:
 def format_report(result: dict) -> str:
     lines = [
         "COLLINEAR OVERLAP DIAGNOSTIC",
+        f"normal pairs: {result.get('normal_pairs', 0)}",
+        f"fragmented pairs detected: {result.get('fragmented_pairs', 0)}",
+        f"fragmented pairs accepted into groups: {result.get('accepted_fragmented_pairs', 0)}",
+        f"fragmented overlap threshold: {FRAGMENTED_MIN_OVERLAP_RATIO:.2f}",
+        f"fragmented endpoint tolerance: {FRAGMENTED_ENDPOINT_TOL_MM:.2f} mm",
+        f"fragmented component minimum edges: {FRAGMENTED_COMPONENT_MIN_EDGES}",
         "============================================================",
         "",
         f"Line segments analysed       : {result['line_segments']}",
@@ -408,6 +556,9 @@ def format_report(result: dict) -> str:
         f"Contained segments           : {result['contained_segments']}",
         f"Overlap groups               : {result['groups']}",
         f"Non-exact overlap groups     : {result['non_exact_groups']}",
+        f"Lines in non-exact groups    : {result['non_exact_line_segments']}",
+        f"Non-exact line ratio         : {result['non_exact_line_ratio']:.2%}",
+        f"Total overlap length         : {result['total_overlap_length_mm']:.2f} mm",
         f"Maximum stack depth          : {result['max_stack_depth']}",
         f"Exact duplicate pairs        : {result['exact_duplicate_pairs']}",
         "",
@@ -416,6 +567,7 @@ def format_report(result: dict) -> str:
         f"  Line separation             : {LINE_OFFSET_TOL_MM:.2f} mm",
         f"  Minimum segment length      : {MIN_SEGMENT_LENGTH_MM:.2f} mm",
         f"  Minimum overlap             : {MIN_OVERLAP_RATIO:.0%}",
+        f"  Endpoint tolerance          : {ENDPOINT_TOL_MM:.2f} mm",
         "",
         "By colour:",
     ]
@@ -433,7 +585,64 @@ def format_report(result: dict) -> str:
 
     lines.extend([
         "",
+        "DETAILED NON-EXACT GROUPS",
+        "============================================================",
+        "Each group lists the individual source Line objects involved.",
+        "Coordinates are in the drawing's mm coordinate system.",
+        "Pair measurements are reported for detected pairs within the group.",
+    ])
+
+    data = result.get("data", [])
+    groups = result.get("non_exact_group_indices", [])
+
+    for group_number, group in enumerate(groups, start=1):
+        colour = data[group[0]]["line"].stroke_color if data else None
+        lines.append(f"\nGROUP {group_number}: {len(group)} lines | colour={colour}")
+
+        xs = [p for idx in group for p in (data[idx]["line"].start.x, data[idx]["line"].end.x)]
+        ys = [p for idx in group for p in (data[idx]["line"].start.y, data[idx]["line"].end.y)]
+        total_length = sum(data[idx]["length"] for idx in group)
+        lines.append(
+            f"  bounds=({min(xs):.3f},{min(ys):.3f}) -> ({max(xs):.3f},{max(ys):.3f}) "
+            f"total_line_length={total_length:.3f} mm"
+        )
+
+        for idx in group:
+            line = data[idx]["line"]
+            lines.append(
+                f"  LINE {idx}: "
+                f"start=({line.start.x:.4f},{line.start.y:.4f}) "
+                f"end=({line.end.x:.4f},{line.end.y:.4f}) "
+                f"length={data[idx]['length']:.4f} mm "
+                f"angle={math.degrees(data[idx]['theta']):.4f} deg"
+            )
+
+        group_set = set(group)
+        group_pairs = [
+            pair for pair in result.get("overlap_pair_details", [])
+            if pair["a"] in group_set and pair["b"] in group_set
+        ]
+        if group_pairs:
+            lines.append("  DETECTED PAIRS:")
+            for pair in group_pairs:
+                endpoint_text = (
+                    f" endpoint_match={pair['endpoint_match_mm']:.4f} mm"
+                    if pair.get('endpoint_match_mm') is not None
+                    else ""
+                )
+                lines.append(
+                    f"    {pair['a']} <-> {pair['b']}: "
+                    f"type={pair.get('pair_type', 'normal')} "
+                    f"overlap={pair['overlap_mm']:.4f} mm "
+                    f"ratio={pair['overlap_ratio']:.4f} "
+                    f"separation={pair['separation_mm']:.4f} mm "
+                    f"angle_diff={pair['angle_deg']:.4f} deg"
+                    f"{endpoint_text}"
+                )
+
+    lines.extend([
+        "",
         "Diagnostic only: no geometry was modified.",
     ])
 
-    return "\\n".join(lines)
+    return "\n".join(lines)

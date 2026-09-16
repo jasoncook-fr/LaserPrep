@@ -39,10 +39,9 @@ class Report:
         if not large_ok:
             self.current["status"]="REJECTED"
             self.current["alerts"].append("Does not fit on large laser.")
-        elif not small_ok:
-            if self.current["status"]=="PASS":
-                self.current["status"]="WARNING"
-            self.current["warnings"].append(f"Does not fit on small laser ({overflow:.2f} mm overflow).")
+        # Small-laser fit is informational only.
+        # The large laser is the production machine, so failure to fit
+        # the smaller machine should not generate an operator warning.
 
     def complexity(self,c):
         self._ensure()
@@ -59,7 +58,24 @@ class Report:
     def collinear_overlap(self, result):
         self._ensure()
         groups = result.get("non_exact_groups", 0)
-        if groups:
+
+        # Configurable overlap thresholds.
+        # Import here so report.py remains compatible with the existing
+        # project structure and the values can be changed in config.py.
+        from config import (
+            COLLINEAR_OVERLAP_WARNING_GROUPS,
+            COLLINEAR_OVERLAP_REJECT_GROUPS,
+        )
+
+        if groups >= COLLINEAR_OVERLAP_REJECT_GROUPS:
+            self.current["status"] = "REJECTED"
+            self.current["alerts"].append(
+                f"Excessive potential geometry overlap: {groups} groups detected. "
+                f"Rejection threshold: {COLLINEAR_OVERLAP_REJECT_GROUPS} groups. "
+                "See Geometry_Overlap_Warning.svg in the project reports."
+            )
+
+        elif groups >= COLLINEAR_OVERLAP_WARNING_GROUPS:
             if self.current["status"] == "PASS":
                 self.current["status"] = "WARNING"
             self.current["warnings"].append(
@@ -81,10 +97,11 @@ class Report:
     def colours(self, colors):
         self._ensure()
         if colors.unsupported:
-            self.current["status"] = "REJECTED"
+            if self.current["status"] == "PASS":
+                self.current["status"] = "WARNING"
             for rgb, count in sorted(colors.unsupported.items()):
                 colour = "#{:02X}{:02X}{:02X}".format(*rgb)
-                self.current["alerts"].append(
+                self.current["warnings"].append(
                     f"Unsupported colour {colour} ({count} objects)."
                 )
 

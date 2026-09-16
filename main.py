@@ -279,6 +279,15 @@ def process_project(
             print_info(f"Skipping unchanged project: {folder}")
             return
 
+        # State is tracked per PDF. A successful PDF (including WARNING)
+        # keeps its hash; a rejected PDF is deliberately left out so it will
+        # be retried on the next batch run.
+        successful_hashes = {
+            pdf_name: pdf_hash
+            for pdf_name, pdf_hash in previous_hashes.items()
+            if pdf_name in current_hashes
+        }
+
     # Remove stale student-facing warning previews before generating this run.
     cleanup_warning_outputs(folder)
 
@@ -289,6 +298,15 @@ def process_project(
     processing_failed = False
     dev_report = DeveloperReport()
     collinear_warning_svgs = []
+
+    def record_batch_result() -> None:
+        """Record the final student-facing result for the current PDF."""
+        if alerts is not None and report.current is not None:
+            alerts.result(
+                project.name,
+                pdf.name,
+                report.current,
+            )
 
     debug = DebugManager(
         DEBUG,
@@ -309,6 +327,9 @@ def process_project(
     # ========================================================
 
     for pdf in pdf_files:
+
+        if use_state:
+            successful_hashes.pop(pdf.name, None)
 
         # Start exactly one report entry for this PDF.
         report.begin_file(pdf.name)
@@ -333,13 +354,7 @@ def process_project(
             report.current["status"] = "REJECTED"
             report.current["alerts"].append(message)
 
-            if alerts is not None:
-                alerts.abort(
-                    project.name,
-                    pdf.name,
-                    message,
-                )
-
+            record_batch_result()
             continue
 
         if page_count > 1:
@@ -357,13 +372,7 @@ def process_project(
             report.current["status"] = "REJECTED"
             report.current["alerts"].append(message)
 
-            if alerts is not None:
-                alerts.abort(
-                    project.name,
-                    pdf.name,
-                    message,
-                )
-
+            record_batch_result()
             continue
 
         print_info(f"Reading {pdf.name}...")
@@ -379,13 +388,11 @@ def process_project(
 
             processing_failed = True
 
-            if alerts is not None:
-                alerts.abort(
-                    project.name,
-                    pdf.name,
-                    "Drawing complexity exceeds the allowed limit."
-                )
+            message = "Drawing complexity exceeds the allowed limit."
+            report.current["status"] = "REJECTED"
+            report.current["alerts"].append(message)
 
+            record_batch_result()
             continue
 
         stats = drawing.pdf_statistics
@@ -439,19 +446,22 @@ def process_project(
             format_collinear_overlap_report(collinear_result),
         )
 
-        if collinear_result["non_exact_groups"]:
+        overlap_groups = collinear_result["non_exact_groups"]
+
+        if overlap_groups:
             collinear_warning_svgs.append(overlap_debug_svg)
 
-            if alerts is not None:
-                alerts.warning(
-                    project.name,
-                    pdf.name,
-                    (
-                        "Potential geometry overlap detected: "
-                        f"{collinear_result['non_exact_groups']} groups. "
-                        "See the Geometry_Overlap_Warning file in the project reports."
-                    ),
-                )
+        # report.py owns the overlap policy. BatchAlerts records the same
+        # final Report result, so the two reports cannot disagree.
+        if report.current["status"] == "REJECTED":
+            processing_failed = True
+
+            print_error(
+                f"ABORT: {pdf.name} exceeds the geometry-overlap rejection threshold."
+            )
+
+            record_batch_result()
+            continue
 
         # ----------------------------------------------------
         # Reject PDFs that produced no usable vector geometry
@@ -472,13 +482,7 @@ def process_project(
             report.current["status"] = "REJECTED"
             report.current["alerts"].append(message)
 
-            if alerts is not None:
-                alerts.abort(
-                    project.name,
-                    pdf.name,
-                    message,
-                )
-
+            record_batch_result()
             continue
 
         diag.export_svg(
@@ -589,12 +593,7 @@ def process_project(
                 f"{LARGE_USABLE_HEIGHT_MM:.2f} mm"
             )
 
-            alerts.abort(
-                project.name,
-                pdf.name,
-                message,
-            )
-
+            record_batch_result()
             continue
 
         report.geometry(geometry)
@@ -649,6 +648,14 @@ def process_project(
         # ----------------------------------------------------
         # Drawing accepted
         # ----------------------------------------------------
+
+        # Record the complete final Report result for the Admin report.
+        record_batch_result()
+
+        # PASS and WARNING files are successfully processed and can therefore
+        # be skipped on the next run if their PDF hash is unchanged.
+        if use_state:
+            successful_hashes[pdf.name] = current_hashes[pdf.name]
 
         project.add(drawing)
 
@@ -721,8 +728,13 @@ def process_project(
     diag.end()
     project.summary()
 
-    if use_state and not processing_failed:
-        save_processing_state(folder, current_hashes)
+    if use_state:
+        if successful_hashes:
+            save_processing_state(folder, successful_hashes)
+        else:
+            state_file = processing_state_path(folder)
+            if state_file.exists():
+                state_file.unlink()
 
 def process_batch(batch_root: Path) -> None:
     """Process every project found under the selected batch root."""
