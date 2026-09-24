@@ -258,7 +258,9 @@ def process_project(
     folder: Path,
     alerts: BatchAlerts | None = None,
     use_state: bool = True,
+    batch_project_name: str | None = None,
 ) -> None:
+
     pdf_files = sorted(folder.glob("*.pdf"))
 
     if not pdf_files:
@@ -303,7 +305,7 @@ def process_project(
         """Record the final student-facing result for the current PDF."""
         if alerts is not None and report.current is not None:
             alerts.result(
-                project.name,
+                batch_project_name or project.name,
                 pdf.name,
                 report.current,
             )
@@ -754,15 +756,13 @@ def process_batch(batch_root: Path) -> None:
         # Lazy organization:
         # PDFs directly in the student's folder form one project.
         if any(student_folder.glob("*.pdf")):
-            projects.append(student_folder)
+            projects.append((student_folder, student_folder.name))
 
         # Organized students:
         # Each immediate subfolder containing PDFs is a project.
-        projects.extend(
-            p
-            for p in sorted(student_folder.iterdir())
-            if p.is_dir() and any(p.glob("*.pdf"))
-        )
+        for p in sorted(student_folder.iterdir()):
+            if p.is_dir() and any(p.glob("*.pdf")):
+                projects.append((p, f"{student_folder.name} / {p.name}"))
 
     if not projects:
         print("No projects found.")
@@ -772,7 +772,7 @@ def process_batch(batch_root: Path) -> None:
 
     alerts = BatchAlerts()
 
-    for i, folder in enumerate(projects, start=1):
+    for i, (folder, batch_project_name) in enumerate(projects, start=1):
         print_info("=" * 60)
         print_info(f"Project {i} / {len(projects)}")
         print_info(str(folder))
@@ -781,6 +781,7 @@ def process_batch(batch_root: Path) -> None:
             folder,
             alerts,
             use_state=True,
+            batch_project_name=batch_project_name,
         )
 
     alerts.save(ADMIN_ROOT)

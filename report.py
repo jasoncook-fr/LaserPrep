@@ -31,17 +31,34 @@ class Report:
             "status":"PASS",
             "warnings":[],
             "alerts":[],
-            "repairs":[]
+            "repairs":[],
+            "drawing_size": None,
+            "maximum_permitted_size": None,
         }
 
-    def validation(self,drawing,rotated,overflow,large_ok,small_ok):
+    def validation(self, drawing, rotated, overflow, large_ok, small_ok):
         self._ensure()
+
+        from config import (
+            LARGE_USABLE_WIDTH_MM,
+            LARGE_USABLE_HEIGHT_MM,
+        )
+
+        self.current["drawing_size"] = (
+            drawing.drawing_width,
+            drawing.drawing_height,
+        )
+
+        self.current["maximum_permitted_size"] = (
+            LARGE_USABLE_WIDTH_MM,
+            LARGE_USABLE_HEIGHT_MM,
+        )
+
         if not large_ok:
-            self.current["status"]="REJECTED"
-            self.current["alerts"].append("Does not fit on large laser.")
-        # Small-laser fit is informational only.
-        # The large laser is the production machine, so failure to fit
-        # the smaller machine should not generate an operator warning.
+            self.current["status"] = "REJECTED"
+            self.current["alerts"].append(
+                f"Exceeds maximum permitted size by {overflow:.2f} mm."
+            )
 
     def complexity(self,c):
         self._ensure()
@@ -165,8 +182,20 @@ class Report:
                 out.append(f"{n}: {r}")
 
         out.extend(["","FILES","-"*60])
+
         for f in self.files:
             icon = {"PASS":"✅","WARNING":"⚠️","REJECTED":"❌"}[f["status"]]
             out.append(f"{icon} {f['name']} ({f['objects']} objects)")
+
+            if f["drawing_size"] and f["maximum_permitted_size"]:
+                dw, dh = f["drawing_size"]
+                mw, mh = f["maximum_permitted_size"]
+
+                out.append(
+                    f"    Drawing Size           : {dw:.2f} × {dh:.2f} mm"
+                )
+                out.append(
+                    f"    Maximum Permitted Size : {mw:.2f} × {mh:.2f} mm"
+                )
 
         Path(path).write_text("\n".join(out),encoding="utf-8")
