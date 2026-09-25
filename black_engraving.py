@@ -239,7 +239,6 @@ def process_black_engraving(drawing) -> dict[str, int]:
         if _is_black(path)
         and (
             not getattr(path, "is_text", False)
-            or getattr(path, "is_direct_text", False)
         )
     ]
 

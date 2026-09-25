@@ -45,6 +45,70 @@ def _dbg(*args, **kwargs):
     if DEBUG:
         print(*args, **kwargs)
 
+def _same_geometry(a, b, tolerance=0.10):
+    """
+    Return True when two vector paths represent the same geometry.
+
+    Comparison is based on:
+        - number of segments
+        - segment types
+        - segment coordinates
+        - closed state
+
+    A small tolerance allows for floating-point differences between
+    the normal geometry import and the text import.
+    """
+
+    if getattr(a, "closed", False) != getattr(b, "closed", False):
+        return False
+
+    # Geometry alone is not enough to identify a duplicate.  In some PDFs,
+    # the same artwork geometry is present in the normal import with a white
+    # fill, while the text import correctly produces it as black.  Those are
+    # visually different paths and the black path must be retained.
+    if getattr(a, "fill_enabled", False) != getattr(b, "fill_enabled", False):
+        return False
+    if getattr(a, "fill_color", None) != getattr(b, "fill_color", None):
+        return False
+
+    a_objects = list(a)
+    b_objects = list(b)
+
+    if len(a_objects) != len(b_objects):
+        return False
+
+    def same_point(p1, p2):
+        return (
+            abs(p1.x - p2.x) <= tolerance
+            and abs(p1.y - p2.y) <= tolerance
+        )
+
+    def same_segment(s1, s2):
+        from drawing import Line, Bezier
+
+        if type(s1) is not type(s2):
+            return False
+
+        if isinstance(s1, Line):
+            return (
+                same_point(s1.start, s2.start)
+                and same_point(s1.end, s2.end)
+            )
+
+        if isinstance(s1, Bezier):
+            return (
+                same_point(s1.start, s2.start)
+                and same_point(s1.control1, s2.control1)
+                and same_point(s1.control2, s2.control2)
+                and same_point(s1.end, s2.end)
+            )
+
+        return False
+
+    return all(
+        same_segment(s1, s2)
+        for s1, s2 in zip(a_objects, b_objects)
+    )
 
 # ============================================================
 # Public API
@@ -195,22 +259,18 @@ def import_text(drawing, pdf_file):
     # Merge into Drawing
     # --------------------------------------------------------
 
-    for path in text_paths:
-
-        left, top, right, bottom = path.bounds
-
-        if left < 20 and bottom > page_height - 5:
-
-            _dbg(
-                f"WARNING: path at ({left:.2f}, {top:.2f}) "
-                f"({right:.2f}, {bottom:.2f})"
-            )
-
-    _dbg(f"Merging {len(text_paths)} text paths...")
-
     object_count = 0
 
     for path in text_paths:
+
+        duplicate = any(
+            _same_geometry(path, existing)
+            for existing in drawing.paths
+        )
+
+        if duplicate:
+            _dbg("Skipping imported text path already present in drawing.")
+            continue
 
         # Imported text is already a complete SVG path.
         # Keep it separate from topology reconstruction.

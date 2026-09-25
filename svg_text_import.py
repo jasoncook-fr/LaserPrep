@@ -112,14 +112,23 @@ def _walk_direct(node, current, out):
         d = node.attrib.get("d", "")
         style = node.attrib.get("style", "")
 
+        # Poppler may express SVG paint properties either as CSS in
+        # the style attribute or as direct presentation attributes.
+        fill = node.attrib.get("fill", "")
+        stroke = node.attrib.get("stroke", "")
+
         if not d.strip():
             pass
 
-        elif "stroke:none" not in style:
+        # An explicit non-none stroke is not text.
+        elif stroke and stroke != "none":
             pass
 
         # White filled artwork is not text.
-        elif "fill:rgb(100%" in style:
+        elif (
+            "fill:rgb(100%" in style
+            or fill.startswith("rgb(100%")
+        ):
             pass
 
         else:
@@ -137,15 +146,19 @@ def _walk_direct(node, current, out):
                 vp.fill_color = (0, 0, 0)
                 vp.is_text = True
 
+                # A filled direct path with no explicit stroke is treated
+                # as direct text geometry.
                 if (
-                    "stroke:none" in style
-                    and "fill:" in style
+                    ("stroke:none" in style or stroke == "none" or not stroke)
+                    and ("fill:" in style or fill)
                 ):
                     vp.is_direct_text = True
 
                 _dbg()
                 _dbg("DIRECT PATH")
                 _dbg(f"Style : {style}")
+                _dbg(f"Fill  : {fill}")
+                _dbg(f"Stroke: {stroke}")
                 _dbg(f"Bounds: {vp.bounds}")
                 _dbg(f"Closed: {vp.closed}")
 
