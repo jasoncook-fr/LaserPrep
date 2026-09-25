@@ -105,8 +105,31 @@ def _scale_mm(vpath):
 
     return vpath
 
+def _path_intersects_page(path, page_width, page_height):
+    """Return True if any path geometry lies inside the PDF page."""
+    if page_width is None or page_height is None:
+        return True
 
-def import_svg_geometry(svg_filename):
+    for obj in path:
+        if isinstance(obj, Line):
+            points = [obj.start, obj.end]
+        elif isinstance(obj, Bezier):
+            points = [
+                obj.start,
+                obj.control1,
+                obj.control2,
+                obj.end,
+            ]
+        else:
+            continue
+
+        for point in points:
+            if 0 <= point.x <= page_width and 0 <= point.y <= page_height:
+                return True
+
+    return False
+
+def import_svg_geometry(svg_filename, page_width=None, page_height=None):
 
     tree = ET.parse(svg_filename)
     root = tree.getroot()
@@ -231,6 +254,13 @@ def import_svg_geometry(svg_filename):
 
             path = _transform_path(path, transform)
             path = _scale_mm(path)
+
+            if not _path_intersects_page(
+                path,
+                page_width,
+                page_height,
+            ):
+                continue
 
             path.stroke_color = stroke
             path.fill_color = fill

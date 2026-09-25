@@ -34,7 +34,11 @@ def read_pdf(filename: Path) -> Drawing:
     )
 
     # Import geometry back into LaserPrep
-    drawing.paths = import_svg_geometry(svg_file)
+    drawing.paths = import_svg_geometry(
+        svg_file,
+        page_width=drawing.width,
+        page_height=drawing.height,
+    )
 
     # Populate drawing.objects from imported paths
     drawing.objects.clear()

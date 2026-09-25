@@ -212,6 +212,113 @@ def save_processing_state(folder: Path, pdf_hashes: dict[str, str]) -> None:
             sort_keys=True,
         )
 
+def rejected_pdf_names(folder: Path) -> set[str]:
+    """Return PDF names explicitly marked REJECTED in the latest base report."""
+    report_path = folder / "reports" / f"{folder.name}.base_report.txt"
+
+    if not report_path.is_file():
+        return set()
+
+    rejected = set()
+
+    try:
+        text = report_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+
+    for line in text.splitlines():
+        if not line.startswith("❌ "):
+            continue
+
+        entry = line[2:]
+        if " (" in entry:
+            entry = entry.rsplit(" (", 1)[0]
+
+        rejected.add(entry)
+
+    return rejected
+
+
+def scan_batch_changes(batch_root: Path) -> list[dict]:
+    """Return projects containing new, changed, rejected, or removed PDFs."""
+    changes = []
+
+    if not batch_root.is_dir():
+        return changes
+
+    # Keep project discovery identical to process_batch(), including the
+    # Student / Project display name used by BatchAlerts.
+    projects = []
+    for student_folder in sorted(batch_root.iterdir()):
+        if not student_folder.is_dir():
+            continue
+
+        if any(student_folder.glob("*.pdf")):
+            projects.append((student_folder, student_folder.name))
+
+        for project_folder in sorted(student_folder.iterdir()):
+            if project_folder.is_dir() and any(project_folder.glob("*.pdf")):
+                projects.append(
+                    (project_folder, f"{student_folder.name} / {project_folder.name}")
+                )
+
+    for folder, batch_project_name in projects:
+        pdf_files = sorted(folder.glob("*.pdf"))
+        current_hashes = {pdf.name: pdf_hash(pdf) for pdf in pdf_files}
+        previous_hashes = load_processing_state(folder)
+        rejected_names = rejected_pdf_names(folder)
+
+        new_files = sorted(
+            name for name in current_hashes
+            if name not in previous_hashes
+            and name not in rejected_names
+        )
+        rejected_files = sorted(
+            name for name in current_hashes
+            if name not in previous_hashes
+            and name in rejected_names
+        )
+        changed_files = sorted(
+            name
+            for name in current_hashes
+            if name in previous_hashes
+            and current_hashes[name] != previous_hashes[name]
+        )
+        removed_files = sorted(
+            name for name in previous_hashes
+            if name not in current_hashes
+        )
+
+        if new_files or changed_files or removed_files:
+            changes.append({
+                "project": batch_project_name,
+                "kind": (
+                    "new"
+                    if not previous_hashes
+                    and new_files
+                    and not rejected_files
+                    and not changed_files
+                    and not removed_files
+                    else "updated"
+                ),
+                "new": new_files,
+                "rejected": rejected_files,
+                "changed": changed_files,
+                "removed": removed_files,
+            })
+        elif rejected_files:
+            changes.append({
+                "project": batch_project_name,
+                "kind": "updated",
+                "new": [],
+                "rejected": rejected_files,
+                "changed": [],
+                "removed": [],
+            })
+
+    return changes
+
+
 def cleanup_warning_outputs(folder: Path) -> None:
     """Remove stale LaserPrep warning SVGs before processing a project.
 
@@ -822,10 +929,25 @@ def launch_gui() -> None:
 
     batch_root_var = tk.StringVar(value=str(BATCH_ROOT))
     status_var = tk.StringVar(value="Ready")
+    single_expanded_var = tk.BooleanVar(value=False)
+    new_changed_expanded_var = tk.BooleanVar(value=False)
+    attention_expanded_var = tk.BooleanVar(value=False)
+    new_changed_summary_var = tk.StringVar(value="Checking...")
+    attention_summary_var = tk.StringVar(value="Checking...")
 
     # --------------------------------------------------------
     # Actions
     # --------------------------------------------------------
+
+    def toggle_single_project() -> None:
+        if single_expanded_var.get():
+            single_expanded_var.set(False)
+            single_body.pack_forget()
+            single_toggle_button.configure(text="▶  TEST SINGLE PROJECT")
+        else:
+            single_expanded_var.set(True)
+            single_body.pack(fill="x", pady=(4, 0))
+            single_toggle_button.configure(text="▼  TEST SINGLE PROJECT")
 
     def select_single_project() -> None:
         last_directory = load_last_single_project_directory()
@@ -852,6 +974,202 @@ def launch_gui() -> None:
         root.destroy()
         process_project(selected_folder, use_state=False)
 
+    def update_batch_preview() -> None:
+        batch_root = Path(batch_root_var.get()).expanduser()
+
+        new_changed_text.configure(state="normal")
+        new_changed_text.delete("1.0", "end")
+        attention_text.configure(state="normal")
+        attention_text.delete("1.0", "end")
+
+        if not batch_root.is_dir():
+            new_changed_summary_var.set("Batch Root does not exist")
+            attention_summary_var.set("Batch Root does not exist")
+            new_changed_toggle_button.configure(
+                text="▶  New / Changed — Batch Root does not exist"
+            )
+            attention_toggle_button.configure(
+                text="▶  Needs Attention — Batch Root does not exist"
+            )
+            new_changed_text.insert("end", "Batch Root does not exist.\n")
+            attention_text.insert("end", "Batch Root does not exist.\n")
+            new_changed_text.configure(state="disabled")
+            attention_text.configure(state="disabled")
+            status_var.set("Invalid Batch Root")
+            return
+
+        changes = scan_batch_changes(batch_root)
+
+        def set_preview_height(widget: tk.Text, line_count: int) -> None:
+            widget.configure(height=max(2, min(7, line_count)))
+
+        new_changed_projects = [
+            item for item in changes
+            if item["new"] or item["changed"]
+        ]
+        attention_projects = [
+            item for item in changes
+            if item.get("rejected") or item["removed"]
+        ]
+
+        new_changed_files = sum(
+            len(item["new"]) + len(item["changed"])
+            for item in new_changed_projects
+        )
+        attention_files = sum(
+            len(item.get("rejected", [])) + len(item["removed"])
+            for item in attention_projects
+        )
+
+        if new_changed_projects:
+            new_changed_summary_var.set(
+                f"{len(new_changed_projects)} project(s) / "
+                f"{new_changed_files} PDF(s)"
+            )
+        else:
+            new_changed_summary_var.set("nothing new")
+
+        if attention_projects:
+            attention_summary_var.set(
+                f"{len(attention_projects)} project(s) / "
+                f"{attention_files} PDF(s)"
+            )
+        else:
+            attention_summary_var.set("nothing to review")
+
+        new_changed_toggle_button.configure(
+            text=(
+                f"{'▼' if new_changed_expanded_var.get() else '▶'}  "
+                f"New / Changed — {new_changed_summary_var.get()}"
+            )
+        )
+        attention_toggle_button.configure(
+            text=(
+                f"{'▼' if attention_expanded_var.get() else '▶'}  "
+                f"Needs Attention — {attention_summary_var.get()}"
+            )
+        )
+
+        if new_changed_projects:
+            for item in new_changed_projects:
+                counts = []
+                if item["new"]:
+                    counts.append(f"{len(item['new'])} new")
+                if item["changed"]:
+                    counts.append(f"{len(item['changed'])} changed")
+
+                new_changed_text.insert(
+                    "end",
+                    f"• {item['project']} — {', '.join(counts)}\n",
+                )
+
+                for name in item["new"]:
+                    new_changed_text.insert("end", f"    + {name}\n")
+                for name in item["changed"]:
+                    new_changed_text.insert("end", f"    ↻ {name}\n")
+
+                new_changed_text.insert("end", "\n")
+        else:
+            new_changed_text.insert("end", "No new or changed PDFs.\n")
+
+        if attention_projects:
+            for item in attention_projects:
+                counts = []
+                if item.get("rejected"):
+                    counts.append(f"{len(item['rejected'])} previously rejected")
+                if item["removed"]:
+                    counts.append(f"{len(item['removed'])} removed")
+
+                attention_text.insert(
+                    "end",
+                    f"• {item['project']} — {', '.join(counts)}\n",
+                )
+
+                for name in item.get("rejected", []):
+                    attention_text.insert(
+                        "end",
+                        f"    ❌ {name}\n",
+                        "rejected",
+                    )
+                for name in item["removed"]:
+                    attention_text.insert(
+                        "end",
+                        f"    − {name}\n",
+                        "removed",
+                    )
+
+                attention_text.insert("end", "\n")
+        else:
+            attention_text.insert("end", "No files need attention.\n")
+
+        new_changed_line_count = 1
+        if new_changed_projects:
+            new_changed_line_count = sum(
+                1
+                + len(item["new"])
+                + len(item["changed"])
+                + 1
+                for item in new_changed_projects
+            )
+        set_preview_height(new_changed_text, new_changed_line_count)
+
+        attention_line_count = 1
+        if attention_projects:
+            attention_line_count = sum(
+                1
+                + len(item.get("rejected", []))
+                + len(item["removed"])
+                + 1
+                for item in attention_projects
+            )
+        set_preview_height(attention_text, attention_line_count)
+
+        new_changed_text.configure(state="disabled")
+        attention_text.configure(state="disabled")
+
+        total_projects = len(changes)
+        if total_projects:
+            status_var.set(f"{total_projects} project(s) need processing")
+        else:
+            status_var.set("Nothing new to process")
+
+    def toggle_new_changed_preview() -> None:
+        if new_changed_expanded_var.get():
+            new_changed_expanded_var.set(False)
+            new_changed_body.pack_forget()
+            new_changed_toggle_button.configure(
+                text=f"▶  New / Changed — {new_changed_summary_var.get()}"
+            )
+        else:
+            new_changed_expanded_var.set(True)
+            new_changed_body.pack(
+                before=attention_toggle_button,
+                fill="both",
+                expand=True,
+                pady=(4, 0),
+            )
+            new_changed_toggle_button.configure(
+                text=f"▼  New / Changed — {new_changed_summary_var.get()}"
+            )
+
+    def toggle_attention_preview() -> None:
+        if attention_expanded_var.get():
+            attention_expanded_var.set(False)
+            attention_body.pack_forget()
+            attention_toggle_button.configure(
+                text=f"▶  Needs Attention — {attention_summary_var.get()}"
+            )
+        else:
+            attention_expanded_var.set(True)
+            attention_body.pack(
+                fill="both",
+                expand=True,
+                pady=(4, 0),
+            )
+            attention_toggle_button.configure(
+                text=f"▼  Needs Attention — {attention_summary_var.get()}"
+            )
+
     def browse_batch_root() -> None:
         folder = filedialog.askdirectory(
             parent=root,
@@ -861,7 +1179,7 @@ def launch_gui() -> None:
 
         if folder:
             batch_root_var.set(folder)
-            status_var.set("Batch root changed for this session.")
+            update_batch_preview()
 
     def run_batch() -> None:
         batch_root = Path(batch_root_var.get()).expanduser()
@@ -914,12 +1232,29 @@ def launch_gui() -> None:
         font=heading_font,
         bg=SINGLE_BG,
         padx=18,
-        pady=14,
+        pady=8,
     )
-    single_frame.pack(fill="x", pady=(0, 14))
+    single_frame.pack(fill="x", pady=(0, 10))
+
+    single_toggle_button = tk.Button(
+        single_frame,
+        text="▶  TEST SINGLE PROJECT",
+        command=toggle_single_project,
+        bg=SINGLE_BG,
+        fg=TEXT,
+        activebackground=SINGLE_BG,
+        activeforeground=TEXT,
+        relief="flat",
+        bd=0,
+        anchor="w",
+        font=heading_font,
+    )
+    single_toggle_button.pack(fill="x")
+
+    single_body = tk.Frame(single_frame, bg=SINGLE_BG)
 
     tk.Label(
-        single_frame,
+        single_body,
         text="Process one project without state tracking.",
         font=body_font,
         bg=SINGLE_BG,
@@ -928,7 +1263,7 @@ def launch_gui() -> None:
     ).pack(fill="x")
 
     tk.Button(
-        single_frame,
+        single_body,
         text="Select Project",
         width=20,
         height=2,
@@ -939,7 +1274,7 @@ def launch_gui() -> None:
         activeforeground=BUTTON_TEXT,
         relief="flat",
         bd=0,
-    ).pack(pady=(12, 0))
+    ).pack(pady=(10, 0))
 
     # --------------------------------------------------------
     # Batch section
@@ -995,6 +1330,105 @@ def launch_gui() -> None:
         bd=0,
     ).pack(side="left", padx=(8, 0))
 
+    preview_refresh_button = tk.Button(
+        root_row,
+        text="Refresh",
+        command=update_batch_preview,
+        bg=NEUTRAL_BUTTON,
+        fg=TEXT,
+        activebackground=NEUTRAL_BUTTON,
+        relief="flat",
+        bd=0,
+    )
+    preview_refresh_button.pack(side="left", padx=(6, 0))
+
+    preview_area = tk.Frame(batch_frame, bg=BATCH_BG)
+    preview_area.pack(fill="both", expand=True, pady=(14, 0))
+
+    # --------------------------------------------------------
+    # New / Changed category
+    # --------------------------------------------------------
+
+    new_changed_toggle_button = tk.Button(
+        preview_area,
+        text="▶  New / Changed — Checking...",
+        command=toggle_new_changed_preview,
+        bg="#FFF4D6",
+        fg=TEXT,
+        activebackground="#FFF4D6",
+        activeforeground=TEXT,
+        relief="flat",
+        bd=0,
+        anchor="w",
+        font=heading_font,
+    )
+    new_changed_toggle_button.pack(fill="x")
+
+    new_changed_body = tk.Frame(preview_area, bg="#FFF4D6")
+
+    new_changed_text_frame = tk.Frame(new_changed_body, bg="#FFF4D6")
+    new_changed_text_frame.pack(fill="both", expand=True)
+
+    new_changed_scrollbar = tk.Scrollbar(new_changed_text_frame)
+    new_changed_scrollbar.pack(side="right", fill="y")
+
+    new_changed_text = tk.Text(
+        new_changed_text_frame,
+        height=7,
+        width=55,
+        wrap="none",
+        bg="#FFFFFF",
+        fg=TEXT,
+        relief="solid",
+        bd=1,
+        yscrollcommand=new_changed_scrollbar.set,
+    )
+    new_changed_text.pack(side="left", fill="both", expand=True)
+    new_changed_scrollbar.config(command=new_changed_text.yview)
+
+    # --------------------------------------------------------
+    # Needs Attention category
+    # --------------------------------------------------------
+
+    attention_toggle_button = tk.Button(
+        preview_area,
+        text="▶  Needs Attention — Checking...",
+        command=toggle_attention_preview,
+        bg="#FDECEC",
+        fg="#8F1D1D",
+        activebackground="#FDECEC",
+        activeforeground="#8F1D1D",
+        relief="flat",
+        bd=0,
+        anchor="w",
+        font=heading_font,
+    )
+    attention_toggle_button.pack(fill="x", pady=(8, 0))
+
+    attention_body = tk.Frame(preview_area, bg="#FDECEC")
+
+    attention_text_frame = tk.Frame(attention_body, bg="#FDECEC")
+    attention_text_frame.pack(fill="both", expand=True)
+
+    attention_scrollbar = tk.Scrollbar(attention_text_frame)
+    attention_scrollbar.pack(side="right", fill="y")
+
+    attention_text = tk.Text(
+        attention_text_frame,
+        height=7,
+        width=55,
+        wrap="none",
+        bg="#FFFFFF",
+        fg=TEXT,
+        relief="solid",
+        bd=1,
+        yscrollcommand=attention_scrollbar.set,
+    )
+    attention_text.pack(side="left", fill="both", expand=True)
+    attention_scrollbar.config(command=attention_text.yview)
+    attention_text.tag_configure("rejected", foreground="#B42318")
+    attention_text.tag_configure("removed", foreground="#8F1D1D")
+
     tk.Button(
         batch_frame,
         text="Run Batch",
@@ -1046,6 +1480,8 @@ def launch_gui() -> None:
         relief="flat",
         bd=0,
     ).pack(side="right")
+
+    update_batch_preview()
 
     # --------------------------------------------------------
     # Center the launcher on screen
