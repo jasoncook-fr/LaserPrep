@@ -148,77 +148,156 @@ def _same_style(a, b):
 
 def _order_component(component, lines):
     """
-    Return the component as separate, style-consistent traversal chains.
+    Order one connected component into continuous traversal chains.
 
-    Every input line is consumed exactly once.  Lines are only joined when
-    they have the same stroke style, so different laser colors never share
-    one output Path.
+    The component contains lines of one style.
+
+    A chain is followed from one endpoint to the next.  At a normal
+    degree-2 point there is exactly one unused continuation.  A new
+    chain is started only when the graph genuinely requires it.
     """
+
+    # ------------------------------------------------------------
+    # Build endpoint adjacency for this component.
+    # ------------------------------------------------------------
 
     adjacency = defaultdict(list)
 
     for idx in component:
         line = lines[idx]
+
         adjacency[point_key(line.start)].append(idx)
         adjacency[point_key(line.end)].append(idx)
 
-    chains = []
     remaining = set(component)
+    chains = []
+
+    # ------------------------------------------------------------
+    # Helper: determine the endpoint of a line relative to a point.
+    # ------------------------------------------------------------
+
+    def other_endpoint(line, point):
+        start = point_key(line.start)
+        end = point_key(line.end)
+
+        if start == point:
+            return end
+
+        if end == point:
+            return start
+
+        return None
+
+    # ------------------------------------------------------------
+    # First consume open chains.
+    #
+    # A degree-1 point is a genuine endpoint of the geometry.
+    # ------------------------------------------------------------
 
     while remaining:
-        # Prefer a remaining line at an endpoint. This gives ordinary open
-        # geometry a natural traversal direction.
-        start = None
 
-        for key, members in adjacency.items():
-            candidates = [idx for idx in members if idx in remaining]
+        start_line = None
+        start_point = None
+
+        for point, members in adjacency.items():
+
+            candidates = [
+                idx
+                for idx in members
+                if idx in remaining
+            ]
+
             if len(candidates) == 1:
-                start = candidates[0]
+                start_line = candidates[0]
+                start_point = point
                 break
 
-        # Closed loops, or components with no degree-1 endpoint.
-        if start is None:
-            start = next(iter(remaining))
+        if start_line is None:
+            break
 
         chain = []
-        current = start
-        current_point = None
+        current = start_line
+        current_point = start_point
 
         while current in remaining:
+
             chain.append(current)
             remaining.remove(current)
 
             line = lines[current]
 
-            if current_point is None:
-                current_point = point_key(line.end)
-            elif point_key(line.start) == current_point:
-                current_point = point_key(line.end)
-            else:
-                current_point = point_key(line.start)
+            next_point = other_endpoint(line, current_point)
 
-            next_line = None
-
-            for candidate in adjacency[current_point]:
-                if candidate not in remaining:
-                    continue
-
-                if not _same_style(lines[current], lines[candidate]):
-                    continue
-
-                next_line = candidate
+            if next_point is None:
                 break
 
-            if next_line is None:
+            candidates = [
+                idx
+                for idx in adjacency[next_point]
+                if idx in remaining
+            ]
+
+            if not candidates:
                 break
 
-            current = next_line
+            # A normal chain has exactly one continuation.
+            if len(candidates) == 1:
+                current = candidates[0]
+                current_point = next_point
+                continue
+
+            # We have reached a genuine branch.
+            # Stop this chain here. The remaining branches will be
+            # handled separately.
+            break
+
+        if chain:
+            chains.append(chain)
+
+    # ------------------------------------------------------------
+    # Any remaining geometry consists of closed loops or branches
+    # without a degree-1 endpoint.
+    #
+    # Consume those without losing any segments.
+    # ------------------------------------------------------------
+
+    while remaining:
+
+        start = next(iter(remaining))
+
+        chain = []
+        current = start
+        current_point = point_key(lines[current].start)
+
+        while current in remaining:
+
+            chain.append(current)
+            remaining.remove(current)
+
+            line = lines[current]
+
+            next_point = other_endpoint(line, current_point)
+
+            if next_point is None:
+                break
+
+            candidates = [
+                idx
+                for idx in adjacency[next_point]
+                if idx in remaining
+            ]
+
+            if not candidates:
+                break
+
+            # Continue with one available segment.
+            current = candidates[0]
+            current_point = next_point
 
         if chain:
             chains.append(chain)
 
     return chains
-
 
 def build_paths(drawing: Drawing) -> None:
     """
