@@ -12,7 +12,7 @@ closed black artwork strokes whose original width must be retained.
 
 from collections import defaultdict
 
-from drawing import Drawing, Line, Bezier, Path
+from drawing import Drawing, Line, Bezier, Path, Point
 
 
 # ============================================================
@@ -315,6 +315,70 @@ def _order_component(component, lines):
 
     return chains
 
+def _collapse_collinear_segments(segments, tolerance=1e-6):
+    """
+    Collapse consecutive, same-style collinear Line segments.
+
+    This preserves the exact endpoints of the outer segments and only removes
+    intermediate vertices that lie on the same straight line.  The tolerance
+    is expressed in drawing units (mm for LaserPrep geometry).
+    """
+    if len(segments) < 2:
+        return list(segments)
+
+    result = []
+    current = segments[0]
+
+    for next_segment in segments[1:]:
+        if not _same_style(current, next_segment):
+            result.append(current)
+            current = next_segment
+            continue
+
+        # The topology traversal should give us connected segments, but keep
+        # this check explicit so the optimizer never bridges a gap.
+        if point_key(current.end) != point_key(next_segment.start):
+            result.append(current)
+            current = next_segment
+            continue
+
+        ax = current.start.x
+        ay = current.start.y
+        bx = current.end.x
+        by = current.end.y
+        cx = next_segment.end.x
+        cy = next_segment.end.y
+
+        # Cross product of (B-A) and (C-A).  Dividing by the length of AB
+        # turns this into the perpendicular distance of C from the line AB.
+        dx = bx - ax
+        dy = by - ay
+        length = (dx * dx + dy * dy) ** 0.5
+
+        if length == 0:
+            result.append(current)
+            current = next_segment
+            continue
+
+        distance = abs(dx * (cy - ay) - dy * (cx - ax)) / length
+
+        if distance <= tolerance:
+            # Keep the original starting point and the final endpoint.
+            current = Line(
+                start=current.start,
+                end=next_segment.end,
+                stroke_color=current.stroke_color,
+                stroke_width=current.stroke_width,
+                import_order=current.import_order,
+            )
+        else:
+            result.append(current)
+            current = next_segment
+
+    result.append(current)
+    return result
+
+
 def build_paths(drawing: Drawing) -> None:
     """
     Build topological Path objects from drawing.objects.
@@ -421,8 +485,15 @@ def build_paths(drawing: Drawing) -> None:
             path.stroke_width = first.stroke_width
             path.import_order = first.import_order
 
-            for index in chain:
-                path.add(lines[index])
+            chain_segments = [
+                lines[index]
+                for index in chain
+            ]
+
+            chain_segments = _collapse_collinear_segments(chain_segments)
+
+            for segment in chain_segments:
+                path.add(segment)
 
             styles = {
                 (
