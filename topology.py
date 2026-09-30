@@ -240,13 +240,20 @@ def _order_component(component, lines):
             if not candidates:
                 break
 
-            # A normal chain has exactly one continuation.
-            if len(candidates) == 1:
-                current = candidates[0]
+            # Only continue into a segment with the same style.
+            same_style_candidates = [
+                idx
+                for idx in candidates
+                if _same_style(lines[current], lines[idx])
+            ]
+
+            # A normal chain has exactly one same-style continuation.
+            if len(same_style_candidates) == 1:
+                current = same_style_candidates[0]
                 current_point = next_point
                 continue
 
-            # We have reached a genuine branch.
+            # We have reached a genuine branch, or a style boundary.
             # Stop this chain here. The remaining branches will be
             # handled separately.
             break
@@ -290,8 +297,17 @@ def _order_component(component, lines):
             if not candidates:
                 break
 
-            # Continue with one available segment.
-            current = candidates[0]
+            # Continue only with a same-style segment.
+            same_style_candidates = [
+                idx
+                for idx in candidates
+                if _same_style(lines[current], lines[idx])
+            ]
+
+            if not same_style_candidates:
+                break
+
+            current = same_style_candidates[0]
             current_point = next_point
 
         if chain:
@@ -407,6 +423,26 @@ def build_paths(drawing: Drawing) -> None:
 
             for index in chain:
                 path.add(lines[index])
+
+            styles = {
+                (
+                    segment.stroke_color,
+                    segment.stroke_width,
+                    getattr(segment, "stroke_enabled", True),
+                    getattr(segment, "fill_enabled", False),
+                    getattr(segment, "fill_color", None),
+                )
+                for segment in path
+            }
+
+            if len(styles) > 1:
+                print(
+                    "MIXED-STYLE PATH:",
+                    sum(1 for _ in path),
+                    "segments,",
+                    len(styles),
+                    "styles",
+                )
 
             drawing.paths.append(path)
 
