@@ -10,7 +10,7 @@ import json
 import shutil
 import fitz
 from batch_alerts import BatchAlerts
-from complexity import analyse_complexity
+from complexity import analyse_complexity, analyse_pdf_complexity
 from geometry_chains import analyse as analyse_chains
 from geometry_statistics import analyse as geometry_statistics
 from topology import build_paths
@@ -484,6 +484,61 @@ def process_project(
             record_batch_result()
             continue
 
+        # ----------------------------------------------------
+        # Preflight: source PDF complexity
+        # ----------------------------------------------------
+
+        print_info(f"Checking {pdf.name}...")
+
+        try:
+            with fitz.open(pdf) as doc:
+                page = doc[0]
+                pdf_complexity = analyse_pdf_complexity(page)
+
+        except Exception as exc:
+            processing_failed = True
+
+            message = (
+                "Could not analyse the PDF's vector complexity "
+                "before processing."
+            )
+
+            print_error(
+                f"ABORT: Could not analyse {pdf.name}: {exc}"
+            )
+
+            report.current["status"] = "REJECTED"
+            report.current["alerts"].append(message)
+
+            record_batch_result()
+            continue
+
+        if pdf_complexity.should_abort:
+
+            processing_failed = True
+
+            message = (
+                "This PDF contains an excessive amount of vector "
+                "geometry and is too complex for LaserPrep to process "
+                "reliably. Please simplify the vector artwork before "
+                "submitting it."
+            )
+
+            print_error(
+                f"ABORT: {pdf.name} contains more than "
+                f"{pdf_complexity.point_count:,} vector points."
+            )
+
+            report.current["status"] = "REJECTED"
+            report.current["alerts"].append(message)
+
+            record_batch_result()
+            continue
+
+        print_info(
+            f"Vector complexity: {pdf_complexity.rating}"
+        )
+
         print_info(f"Reading {pdf.name}...")
 
         drawing = read_pdf(pdf)
@@ -769,6 +824,25 @@ def process_project(
         project.add(drawing)
 
     # ========================================================
+    # Stop if processing failed
+    # ========================================================
+
+    if processing_failed:
+        report.save(
+            reports_folder / f"{project.name}.base_report.txt",
+            project.name,
+        )
+
+        dev_report.save(
+            reports_folder / f"{project.name}.extensive_report.txt",
+            project.name,
+        )
+
+        debug.finish()
+        diag.end()
+        return
+
+    # ========================================================
     # Export SVG
     # ========================================================
 
@@ -790,7 +864,7 @@ def process_project(
         )
 
     # Do not create an empty SVG when no PDF produced usable geometry.
-    if not project.drawings:
+    if not project.drawings and not processing_failed:
         report.save(
             reports_folder / f"{project.name}.base_report.txt",
             project.name,

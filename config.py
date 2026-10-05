@@ -52,6 +52,11 @@ COLOUR_TOLERANCE = 25.0
 COMPLEXITY_WARNING_OBJECTS = 20000
 COMPLEXITY_HIGH_OBJECTS = 100000
 COMPLEXITY_ABORT_OBJECTS = 250000
+# Estimated vector point complexity in the source PDF.
+# Used for early rejection before SVG export/import.
+COMPLEXITY_WARNING_POINTS = 250000
+COMPLEXITY_HIGH_POINTS = 1000000
+COMPLEXITY_ABORT_POINTS = 2000000
 
 # ============================================================
 # Suspiciously small / densely detailed PDF detection
