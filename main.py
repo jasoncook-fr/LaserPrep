@@ -10,7 +10,11 @@ import json
 import shutil
 import fitz
 from batch_alerts import BatchAlerts
-from complexity import analyse_complexity, analyse_pdf_complexity
+from complexity import (
+    analyse_complexity,
+    analyse_pdf_complexity,
+    analyse_pdf_content,
+)
 from geometry_chains import analyse as analyse_chains
 from geometry_statistics import analyse as geometry_statistics
 from topology import build_paths
@@ -494,6 +498,7 @@ def process_project(
             with fitz.open(pdf) as doc:
                 page = doc[0]
                 pdf_complexity = analyse_pdf_complexity(page)
+                pdf_content = analyse_pdf_content(page)
 
         except Exception as exc:
             processing_failed = True
@@ -527,6 +532,26 @@ def process_project(
             print_error(
                 f"ABORT: {pdf.name} contains more than "
                 f"{pdf_complexity.point_count:,} vector points."
+            )
+
+            report.current["status"] = "REJECTED"
+            report.current["alerts"].append(message)
+
+            record_batch_result()
+            continue
+
+        if pdf_content.is_non_vector:
+
+            processing_failed = True
+
+            message = (
+                "This PDF contains no usable vector artwork. "
+                "The submitted artwork appears to be raster/image-based. "
+                "Please submit a vector PDF suitable for laser cutting."
+            )
+
+            print_error(
+                f"REJECT: {pdf.name} contains no usable vector artwork."
             )
 
             report.current["status"] = "REJECTED"

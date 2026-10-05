@@ -26,6 +26,58 @@ class Complexity:
     should_abort: bool
     point_count: int = 0
 
+@dataclass
+class PDFContent:
+    raster_images: int
+    vector_drawings: int
+    usable_vector_drawings: int
+    is_non_vector: bool
+
+def analyse_pdf_content(page) -> PDFContent:
+    """
+    Determine whether a PDF page contains usable vector artwork.
+
+    Raster images are allowed when genuine vector geometry is also present.
+    A PDF is considered non-vector only when it contains raster images but
+    no usable vector drawings.
+    """
+    raster_images = len(page.get_images(full=True))
+    drawings = page.get_cdrawings()
+
+    usable_vector_drawings = 0
+
+    for drawing in drawings:
+        items = drawing.get("items", [])
+
+        # Ignore empty drawings and drawings with no actual geometry.
+        if not items:
+            continue
+
+        # A drawing is considered useful vector content if it contains
+        # line, Bézier, rectangle, or quad geometry.
+        has_geometry = any(
+            item[0] in ("l", "c", "qu")
+            for item in items
+        )
+
+        has_stroked_geometry = (
+            drawing.get("type") in ("s", "fs")
+            or drawing.get("color") is not None
+        )
+
+        if has_geometry or has_stroked_geometry:
+            usable_vector_drawings += 1
+
+    return PDFContent(
+        raster_images=raster_images,
+        vector_drawings=len(drawings),
+        usable_vector_drawings=usable_vector_drawings,
+        is_non_vector=(
+            raster_images > 0
+            and usable_vector_drawings == 0
+        ),
+    )
+
 def analyse_complexity(drawing) -> Complexity:
     """
     Analyse drawing complexity based on the number of imported objects.
