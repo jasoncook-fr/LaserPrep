@@ -863,6 +863,14 @@ def process_project(
             project.name,
         )
 
+        if use_state:
+            if successful_hashes:
+                save_processing_state(folder, successful_hashes)
+            else:
+                state_file = processing_state_path(folder)
+                if state_file.exists():
+                    state_file.unlink()
+
         debug.finish()
         diag.end()
         return
