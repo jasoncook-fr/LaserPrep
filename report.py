@@ -3,6 +3,7 @@ report.py
 """
 from pathlib import Path
 from datetime import datetime
+import os
 
 class Report:
     def __init__(self):
@@ -198,4 +199,7 @@ class Report:
                     f"    Maximum Permitted Size : {mw:.2f} × {mh:.2f} mm"
                 )
 
-        Path(path).write_text("\n".join(out),encoding="utf-8")
+        tmp_path = Path(path).with_suffix(Path(path).suffix + ".tmp")
+
+        tmp_path.write_text("\n".join(out), encoding="utf-8")
+        os.replace(tmp_path, path)

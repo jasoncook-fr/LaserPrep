@@ -12,7 +12,7 @@ closed black artwork strokes whose original width must be retained.
 
 from collections import defaultdict
 
-from drawing import Drawing, Line, Bezier, Path
+from drawing import Drawing, Line, Bezier, Path, Point
 
 
 # ============================================================
@@ -148,76 +148,235 @@ def _same_style(a, b):
 
 def _order_component(component, lines):
     """
-    Return the component as separate, style-consistent traversal chains.
+    Order one connected component into continuous traversal chains.
 
-    Every input line is consumed exactly once.  Lines are only joined when
-    they have the same stroke style, so different laser colors never share
-    one output Path.
+    The component contains lines of one style.
+
+    A chain is followed from one endpoint to the next.  At a normal
+    degree-2 point there is exactly one unused continuation.  A new
+    chain is started only when the graph genuinely requires it.
     """
+
+    # ------------------------------------------------------------
+    # Build endpoint adjacency for this component.
+    # ------------------------------------------------------------
 
     adjacency = defaultdict(list)
 
     for idx in component:
         line = lines[idx]
+
         adjacency[point_key(line.start)].append(idx)
         adjacency[point_key(line.end)].append(idx)
 
-    chains = []
     remaining = set(component)
+    chains = []
+
+    # ------------------------------------------------------------
+    # Helper: determine the endpoint of a line relative to a point.
+    # ------------------------------------------------------------
+
+    def other_endpoint(line, point):
+        start = point_key(line.start)
+        end = point_key(line.end)
+
+        if start == point:
+            return end
+
+        if end == point:
+            return start
+
+        return None
+
+    # ------------------------------------------------------------
+    # First consume open chains.
+    #
+    # A degree-1 point is a genuine endpoint of the geometry.
+    # ------------------------------------------------------------
 
     while remaining:
-        # Prefer a remaining line at an endpoint. This gives ordinary open
-        # geometry a natural traversal direction.
-        start = None
 
-        for key, members in adjacency.items():
-            candidates = [idx for idx in members if idx in remaining]
+        start_line = None
+        start_point = None
+
+        for point, members in adjacency.items():
+
+            candidates = [
+                idx
+                for idx in members
+                if idx in remaining
+            ]
+
             if len(candidates) == 1:
-                start = candidates[0]
+                start_line = candidates[0]
+                start_point = point
                 break
 
-        # Closed loops, or components with no degree-1 endpoint.
-        if start is None:
-            start = next(iter(remaining))
+        if start_line is None:
+            break
 
         chain = []
-        current = start
-        current_point = None
+        current = start_line
+        current_point = start_point
 
         while current in remaining:
+
             chain.append(current)
             remaining.remove(current)
 
             line = lines[current]
 
-            if current_point is None:
-                current_point = point_key(line.end)
-            elif point_key(line.start) == current_point:
-                current_point = point_key(line.end)
-            else:
-                current_point = point_key(line.start)
+            next_point = other_endpoint(line, current_point)
 
-            next_line = None
-
-            for candidate in adjacency[current_point]:
-                if candidate not in remaining:
-                    continue
-
-                if not _same_style(lines[current], lines[candidate]):
-                    continue
-
-                next_line = candidate
+            if next_point is None:
                 break
 
-            if next_line is None:
+            candidates = [
+                idx
+                for idx in adjacency[next_point]
+                if idx in remaining
+            ]
+
+            if not candidates:
                 break
 
-            current = next_line
+            # Only continue into a segment with the same style.
+            same_style_candidates = [
+                idx
+                for idx in candidates
+                if _same_style(lines[current], lines[idx])
+            ]
+
+            # A normal chain has exactly one same-style continuation.
+            if len(same_style_candidates) == 1:
+                current = same_style_candidates[0]
+                current_point = next_point
+                continue
+
+            # We have reached a genuine branch, or a style boundary.
+            # Stop this chain here. The remaining branches will be
+            # handled separately.
+            break
+
+        if chain:
+            chains.append(chain)
+
+    # ------------------------------------------------------------
+    # Any remaining geometry consists of closed loops or branches
+    # without a degree-1 endpoint.
+    #
+    # Consume those without losing any segments.
+    # ------------------------------------------------------------
+
+    while remaining:
+
+        start = next(iter(remaining))
+
+        chain = []
+        current = start
+        current_point = point_key(lines[current].start)
+
+        while current in remaining:
+
+            chain.append(current)
+            remaining.remove(current)
+
+            line = lines[current]
+
+            next_point = other_endpoint(line, current_point)
+
+            if next_point is None:
+                break
+
+            candidates = [
+                idx
+                for idx in adjacency[next_point]
+                if idx in remaining
+            ]
+
+            if not candidates:
+                break
+
+            # Continue only with a same-style segment.
+            same_style_candidates = [
+                idx
+                for idx in candidates
+                if _same_style(lines[current], lines[idx])
+            ]
+
+            if not same_style_candidates:
+                break
+
+            current = same_style_candidates[0]
+            current_point = next_point
 
         if chain:
             chains.append(chain)
 
     return chains
+
+def _collapse_collinear_segments(segments, tolerance=1e-6):
+    """
+    Collapse consecutive, same-style collinear Line segments.
+
+    This preserves the exact endpoints of the outer segments and only removes
+    intermediate vertices that lie on the same straight line.  The tolerance
+    is expressed in drawing units (mm for LaserPrep geometry).
+    """
+    if len(segments) < 2:
+        return list(segments)
+
+    result = []
+    current = segments[0]
+
+    for next_segment in segments[1:]:
+        if not _same_style(current, next_segment):
+            result.append(current)
+            current = next_segment
+            continue
+
+        # The topology traversal should give us connected segments, but keep
+        # this check explicit so the optimizer never bridges a gap.
+        if point_key(current.end) != point_key(next_segment.start):
+            result.append(current)
+            current = next_segment
+            continue
+
+        ax = current.start.x
+        ay = current.start.y
+        bx = current.end.x
+        by = current.end.y
+        cx = next_segment.end.x
+        cy = next_segment.end.y
+
+        # Cross product of (B-A) and (C-A).  Dividing by the length of AB
+        # turns this into the perpendicular distance of C from the line AB.
+        dx = bx - ax
+        dy = by - ay
+        length = (dx * dx + dy * dy) ** 0.5
+
+        if length == 0:
+            result.append(current)
+            current = next_segment
+            continue
+
+        distance = abs(dx * (cy - ay) - dy * (cx - ax)) / length
+
+        if distance <= tolerance:
+            # Keep the original starting point and the final endpoint.
+            current = Line(
+                start=current.start,
+                end=next_segment.end,
+                stroke_color=current.stroke_color,
+                stroke_width=current.stroke_width,
+                import_order=current.import_order,
+            )
+        else:
+            result.append(current)
+            current = next_segment
+
+    result.append(current)
+    return result
 
 
 def build_paths(drawing: Drawing) -> None:
@@ -326,8 +485,41 @@ def build_paths(drawing: Drawing) -> None:
             path.stroke_width = first.stroke_width
             path.import_order = first.import_order
 
-            for index in chain:
-                path.add(lines[index])
+            chain_segments = [
+                lines[index]
+                for index in chain
+            ]
+
+            chain_segments = _collapse_collinear_segments(chain_segments)
+
+            # Do not infer SVG closure from the endpoints of a reconstructed chain.
+            # The imported line segments already contain their actual geometry.
+            # If the writer encounters disconnected subpaths, a trailing Z would
+            # close only the last subpath and introduce an unwanted diagonal.
+            path.closed = False
+
+            for segment in chain_segments:
+                path.add(segment)
+
+            styles = {
+                (
+                    segment.stroke_color,
+                    segment.stroke_width,
+                    getattr(segment, "stroke_enabled", True),
+                    getattr(segment, "fill_enabled", False),
+                    getattr(segment, "fill_color", None),
+                )
+                for segment in path
+            }
+
+            if len(styles) > 1:
+                print(
+                    "MIXED-STYLE PATH:",
+                    sum(1 for _ in path),
+                    "segments,",
+                    len(styles),
+                    "styles",
+                )
 
             drawing.paths.append(path)
 

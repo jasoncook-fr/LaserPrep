@@ -201,6 +201,80 @@ def _write_imported_path(parent, path):
         },
     )
 
+
+def _order_paths_for_laser(paths):
+    """
+    Order paths for laser cutting.
+
+    Rule:
+    1. Non-blue artwork/engraving first.
+    2. Blue cutting paths next.
+    3. The outermost blue closed path last.
+
+    The final perimeter cut must always happen after all
+    interior cutting operations.
+    """
+
+    BLUE = (0, 0, 255)
+
+    engraving = []
+    cutting = []
+    closed_cutting = []
+
+    for path in paths:
+
+        if path.stroke_color == BLUE:
+            if getattr(path, "closed", False):
+                closed_cutting.append(path)
+            else:
+                cutting.append(path)
+        else:
+            engraving.append(path)
+
+    # Among closed blue paths, the largest one is assumed to be
+    # the final outer border.
+    def path_extent(path):
+        points = []
+
+        for obj in path:
+            if isinstance(obj, Line):
+                points.extend([obj.start, obj.end])
+
+            elif isinstance(obj, Bezier):
+                points.extend([
+                    obj.start,
+                    obj.control1,
+                    obj.control2,
+                    obj.end,
+                ])
+
+        if not points:
+            return 0
+
+        min_x = min(p.x for p in points)
+        max_x = max(p.x for p in points)
+        min_y = min(p.y for p in points)
+        max_y = max(p.y for p in points)
+
+        return (max_x - min_x) * (max_y - min_y)
+
+    outer_border = None
+
+    if closed_cutting:
+        outer_border = max(
+            closed_cutting,
+            key=path_extent,
+        )
+
+        closed_cutting.remove(outer_border)
+
+    return (
+        engraving
+        + cutting
+        + closed_cutting
+        + ([outer_border] if outer_border is not None else [])
+    )
+
 def write_svg(project: Project, filename: Path):
 
     root = _svg_root()
@@ -208,7 +282,9 @@ def write_svg(project: Project, filename: Path):
     for drawing in project.drawings:
         layer = _layer(root, drawing.name)
 
-        for path in drawing.paths:
+        ordered_paths = _order_paths_for_laser(drawing.paths)
+
+        for path in ordered_paths:
             _write_imported_path(layer, path)
 
     ET.ElementTree(root).write(

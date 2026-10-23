@@ -40,49 +40,42 @@ class BatchAlerts:
             "=" * 60 + "\n\n",
             "SUMMARY\n",
             "-" * 60 + "\n",
-            f"Accepted : {len(accepted)}\n",
-            f"Warnings : {len(warnings)}\n",
-            f"Rejected : {len(rejected)}\n",
+            f"🟢 Accepted : {len(accepted)}\n",
+            f"🟡 Warnings : {len(warnings)}\n",
+            f"🔴 Rejected : {len(rejected)}\n",
             "\n",
-            "❌ REJECTED\n",
-            "-" * 60 + "\n",
         ]
 
-        if rejected:
-            for result in rejected:
-                lines.append(f"{result['project']}\n")
-                lines.append(f"    {result['pdf']}\n")
+        def append_grouped_section(title, emoji, results, detail_key=None):
+            if not results:
+                return
 
-                for message in result["alerts"]:
-                    for line in str(message).splitlines():
-                        lines.append(f"    {line}\n")
+            lines.append(f"{emoji} {title}\n")
+            lines.append("-" * 60 + "\n")
 
-                # Keep any additional warnings visible on a rejected file.
-                for message in result["warnings"]:
-                    for line in str(message).splitlines():
-                        lines.append(f"    ⚠️ {line}\n")
+            grouped = {}
+            for result in results:
+                grouped.setdefault(result["project"], []).append(result)
 
-                lines.append("\n")
-        else:
-            lines.append("None\n\n")
+            for project, project_results in grouped.items():
+                lines.append(f"{project}\n")
+                for result in project_results:
+                    lines.append(f"  • {result['pdf']}\n")
 
-        lines.extend([
-            "⚠️ WARNINGS\n",
-            "-" * 60 + "\n",
-        ])
-
-        if warnings:
-            for result in warnings:
-                lines.append(f"{result['project']}\n")
-                lines.append(f"    {result['pdf']}\n")
-
-                for message in result["warnings"]:
-                    for line in str(message).splitlines():
-                        lines.append(f"    • {line}\n")
+                    if detail_key == "rejected":
+                        for alert in result.get("alerts", []):
+                            lines.append(f"    {alert}\n")
+                        for warning in result.get("warnings", []):
+                            lines.append(f"    • {warning}\n")
+                    elif detail_key == "warnings":
+                        for warning in result.get("warnings", []):
+                            lines.append(f"    • {warning}\n")
 
                 lines.append("\n")
-        else:
-            lines.append("None\n")
+
+        append_grouped_section("ACCEPTED", "✅", accepted)
+        append_grouped_section("REJECTED", "❌", rejected, "rejected")
+        append_grouped_section("WARNINGS", "⚠️", warnings, "warnings")
 
         report = "".join(lines)
 

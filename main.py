@@ -10,7 +10,11 @@ import json
 import shutil
 import fitz
 from batch_alerts import BatchAlerts
-from complexity import analyse_complexity
+from complexity import (
+    analyse_complexity,
+    analyse_pdf_complexity,
+    analyse_pdf_content,
+)
 from geometry_chains import analyse as analyse_chains
 from geometry_statistics import analyse as geometry_statistics
 from topology import build_paths
@@ -484,6 +488,82 @@ def process_project(
             record_batch_result()
             continue
 
+        # ----------------------------------------------------
+        # Preflight: source PDF complexity
+        # ----------------------------------------------------
+
+        print_info(f"Checking {pdf.name}...")
+
+        try:
+            with fitz.open(pdf) as doc:
+                page = doc[0]
+                pdf_complexity = analyse_pdf_complexity(page)
+                pdf_content = analyse_pdf_content(page)
+
+        except Exception as exc:
+            processing_failed = True
+
+            message = (
+                "Could not analyse the PDF's vector complexity "
+                "before processing."
+            )
+
+            print_error(
+                f"ABORT: Could not analyse {pdf.name}: {exc}"
+            )
+
+            report.current["status"] = "REJECTED"
+            report.current["alerts"].append(message)
+
+            record_batch_result()
+            continue
+
+        if pdf_complexity.should_abort:
+
+            processing_failed = True
+
+            message = (
+                "This PDF contains an excessive amount of vector "
+                "geometry and is too complex for LaserPrep to process "
+                "reliably. Please simplify the vector artwork before "
+                "submitting it."
+            )
+
+            print_error(
+                f"ABORT: {pdf.name} contains more than "
+                f"{pdf_complexity.point_count:,} vector points."
+            )
+
+            report.current["status"] = "REJECTED"
+            report.current["alerts"].append(message)
+
+            record_batch_result()
+            continue
+
+        if pdf_content.is_non_vector:
+
+            processing_failed = True
+
+            message = (
+                "This PDF contains no usable vector artwork. "
+                "The submitted artwork appears to be raster/image-based. "
+                "Please submit a vector PDF suitable for laser cutting."
+            )
+
+            print_error(
+                f"REJECT: {pdf.name} contains no usable vector artwork."
+            )
+
+            report.current["status"] = "REJECTED"
+            report.current["alerts"].append(message)
+
+            record_batch_result()
+            continue
+
+        print_info(
+            f"Vector complexity: {pdf_complexity.rating}"
+        )
+
         print_info(f"Reading {pdf.name}...")
 
         drawing = read_pdf(pdf)
@@ -769,6 +849,33 @@ def process_project(
         project.add(drawing)
 
     # ========================================================
+    # Stop if processing failed
+    # ========================================================
+
+    if processing_failed:
+        report.save(
+            reports_folder / f"{project.name}.base_report.txt",
+            project.name,
+        )
+
+        dev_report.save(
+            reports_folder / f"{project.name}.extensive_report.txt",
+            project.name,
+        )
+
+        if use_state:
+            if successful_hashes:
+                save_processing_state(folder, successful_hashes)
+            else:
+                state_file = processing_state_path(folder)
+                if state_file.exists():
+                    state_file.unlink()
+
+        debug.finish()
+        diag.end()
+        return
+
+    # ========================================================
     # Export SVG
     # ========================================================
 
@@ -790,7 +897,7 @@ def process_project(
         )
 
     # Do not create an empty SVG when no PDF produced usable geometry.
-    if not project.drawings:
+    if not project.drawings and not processing_failed:
         report.save(
             reports_folder / f"{project.name}.base_report.txt",
             project.name,
