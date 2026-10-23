@@ -86,7 +86,7 @@ SOFTWARE_STAMP_MAX_HEIGHT_MM = 4.5
 # parallel, physically close, and substantially overlapping.
 # These values are diagnostic thresholds only; no geometry is
 # automatically modified by this detector.
-COLLINEAR_ANGLE_TOLERANCE_DEG = 0.50
+COLLINEAR_ANGLE_TOLERANCE_DEG = 1.0
 COLLINEAR_SEPARATION_TOLERANCE_MM = 0.50
 COLLINEAR_MIN_SEGMENT_LENGTH_MM = 1.00
 COLLINEAR_MIN_OVERLAP_RATIO = 0.80
