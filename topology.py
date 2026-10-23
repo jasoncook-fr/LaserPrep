@@ -491,12 +491,12 @@ def build_paths(drawing: Drawing) -> None:
             ]
 
             chain_segments = _collapse_collinear_segments(chain_segments)
-            if (
-                chain_segments
-                and point_key(chain_segments[0].start)
-                == point_key(chain_segments[-1].end)
-            ):
-                path.closed = True
+
+            # Do not infer SVG closure from the endpoints of a reconstructed chain.
+            # The imported line segments already contain their actual geometry.
+            # If the writer encounters disconnected subpaths, a trailing Z would
+            # close only the last subpath and introduce an unwanted diagonal.
+            path.closed = False
 
             for segment in chain_segments:
                 path.add(segment)
