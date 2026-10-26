@@ -188,9 +188,13 @@ def processing_state_path(folder: Path) -> Path:
     return state_dir / filename
 
 
-def load_processing_state(folder: Path) -> dict:
-    """Load the record of the last successful processing run."""
+def load_processing_records(folder: Path) -> dict[str, dict]:
+    """Load per-PDF hashes and cached report outcomes.
 
+    Legacy state files (a simple filename-to-hash mapping) are accepted.
+    They have no cached report outcomes, so those PDFs are reprocessed once
+    to establish the richer state format.
+    """
     state_file = processing_state_path(folder)
 
     if not state_file.exists():
@@ -198,23 +202,45 @@ def load_processing_state(folder: Path) -> dict:
 
     try:
         with state_file.open("r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
     except (OSError, json.JSONDecodeError):
         return {}
 
+    if isinstance(data, dict) and isinstance(data.get("files"), dict):
+        return {
+            name: record
+            for name, record in data["files"].items()
+            if isinstance(record, dict) and isinstance(record.get("hash"), str)
+        }
 
-def save_processing_state(folder: Path, pdf_hashes: dict[str, str]) -> None:
-    """Save the hashes of PDFs successfully processed."""
+    # Backward compatibility: old format stored only successful PDF hashes.
+    if isinstance(data, dict):
+        return {
+            name: {"hash": value, "status": None}
+            for name, value in data.items()
+            if isinstance(name, str) and isinstance(value, str)
+        }
 
+    return {}
+
+
+def load_processing_state(folder: Path) -> dict[str, str]:
+    """Return filename-to-hash state for the batch preview."""
+    return {
+        name: record["hash"]
+        for name, record in load_processing_records(folder).items()
+    }
+
+
+def save_processing_state(folder: Path, records: dict[str, dict]) -> None:
+    """Atomically save content hashes and per-PDF report outcomes."""
     state_file = processing_state_path(folder)
+    tmp_path = state_file.with_suffix(state_file.suffix + ".tmp")
 
-    with state_file.open("w", encoding="utf-8") as f:
-        json.dump(
-            pdf_hashes,
-            f,
-            indent=2,
-            sort_keys=True,
-        )
+    payload = {"version": 2, "files": records}
+    with tmp_path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+    tmp_path.replace(state_file)
 
 def rejected_pdf_names(folder: Path) -> set[str]:
     """Return PDF names explicitly marked REJECTED in the latest base report."""
@@ -277,10 +303,16 @@ def scan_batch_changes(batch_root: Path) -> list[dict]:
             if name not in previous_hashes
             and name not in rejected_names
         )
+        # Keep unchanged rejections visible in Needs Attention, but don't
+        # treat a rejected PDF whose contents changed as unchanged: it belongs
+        # in New / Changed and will be retried.
         rejected_files = sorted(
             name for name in current_hashes
-            if name not in previous_hashes
-            and name in rejected_names
+            if name in rejected_names
+            and (
+                name not in previous_hashes
+                or current_hashes[name] == previous_hashes[name]
+            )
         )
         changed_files = sorted(
             name
@@ -323,7 +355,10 @@ def scan_batch_changes(batch_root: Path) -> list[dict]:
     return changes
 
 
-def cleanup_warning_outputs(folder: Path) -> None:
+def cleanup_warning_outputs(
+    folder: Path,
+    preserve_pdf_stems: set[str] | None = None,
+) -> None:
     """Remove stale LaserPrep warning SVGs before processing a project.
 
     Geometry-overlap warnings and unsupported-colour previews are generated
@@ -332,6 +367,7 @@ def cleanup_warning_outputs(folder: Path) -> None:
 
     Bad-colour previews are kept in the project's reports/ folder.
     """
+    preserve_pdf_stems = preserve_pdf_stems or set()
     reports_folder = folder / "reports"
     reports_folder.mkdir(parents=True, exist_ok=True)
 
@@ -357,12 +393,31 @@ def cleanup_warning_outputs(folder: Path) -> None:
             continue
         seen.add(path)
 
-        if path.is_file():
-            try:
-                path.unlink()
-                print_info(f"Removed old warning file: {path}")
-            except OSError as exc:
-                print_warning(f"Could not remove old warning file {path}: {exc}")
+        if not path.is_file():
+            continue
+
+        # Cached PDFs were not reanalysed, so their existing warning previews
+        # must remain available. Remove outputs only for PDFs that will be
+        # processed again (or for removed/unrelated stale outputs).
+        if path.name.endswith("_bad_colors.svg"):
+            pdf_stem = path.name.removesuffix("_bad_colors.svg")
+            if pdf_stem in preserve_pdf_stems:
+                continue
+
+        if path.name.startswith("Geometry_Overlap_Warning - "):
+            pdf_stem = (
+                path.name
+                .removeprefix("Geometry_Overlap_Warning - ")
+                .removesuffix(".svg")
+            )
+            if pdf_stem in preserve_pdf_stems:
+                continue
+
+        try:
+            path.unlink()
+            print_info(f"Removed old warning file: {path}")
+        except OSError as exc:
+            print_warning(f"Could not remove old warning file {path}: {exc}")
 
 
 def process_project(
@@ -379,6 +434,7 @@ def process_project(
         return
 
     current_hashes = None
+    preserve_cached_stems: set[str] = set()
 
     if use_state:
         current_hashes = {
@@ -386,23 +442,46 @@ def process_project(
             for pdf in pdf_files
         }
 
-        previous_hashes = load_processing_state(folder)
-
-        if current_hashes == previous_hashes:
-            print_info(f"Skipping unchanged project: {folder}")
-            return
-
-        # State is tracked per PDF. A successful PDF (including WARNING)
-        # keeps its hash; a rejected PDF is deliberately left out so it will
-        # be retried on the next batch run.
-        successful_hashes = {
-            pdf_name: pdf_hash
-            for pdf_name, pdf_hash in previous_hashes.items()
-            if pdf_name in current_hashes
+        previous_records = load_processing_records(folder)
+        previous_hashes = {
+            name: record["hash"]
+            for name, record in previous_records.items()
         }
 
-    # Remove stale student-facing warning previews before generating this run.
-    cleanup_warning_outputs(folder)
+        if current_hashes == previous_hashes and all(
+            previous_records.get(pdf.name, {}).get("status") is not None
+            and isinstance(previous_records.get(pdf.name, {}).get("entry"), dict)
+            for pdf in pdf_files
+        ):
+            print_info(f"Skipping unchanged project: {folder}")
+            if alerts is not None:
+                for pdf in pdf_files:
+                    record = previous_records[pdf.name]
+                    alerts.result(
+                        batch_project_name or folder.name,
+                        pdf.name,
+                        record["entry"],
+                    )
+            return
+
+        # Keep cached results for PDFs whose contents have not changed.
+        # New/changed PDFs will overwrite their previous records when processed.
+        processing_records = {
+            name: record
+            for name, record in previous_records.items()
+            if name in current_hashes
+        }
+        preserve_cached_stems = {
+            Path(name).stem
+            for name, record in previous_records.items()
+            if name in current_hashes
+            and record.get("hash") == current_hashes[name]
+            and record.get("status") == "REJECTED"
+            and isinstance(record.get("entry"), dict)
+        }
+
+    # Clear stale outputs only for files that will be reprocessed.
+    cleanup_warning_outputs(folder, preserve_cached_stems)
 
     reports_folder = folder / "reports"
 
@@ -411,15 +490,27 @@ def process_project(
     processing_failed = False
     dev_report = DeveloperReport()
     collinear_warning_svgs = []
+    current_dev_start = 0
 
     def record_batch_result() -> None:
-        """Record the final student-facing result for the current PDF."""
-        if alerts is not None and report.current is not None:
+        """Record the final result and cache it for unchanged future runs."""
+        if report.current is None:
+            return
+
+        if alerts is not None:
             alerts.result(
                 batch_project_name or project.name,
                 pdf.name,
                 report.current,
             )
+
+        if use_state:
+            processing_records[pdf.name] = {
+                "hash": current_hashes[pdf.name],
+                "status": report.current.get("status", "PASS"),
+                "entry": report.current.copy(),
+                "dev_lines": list(dev_report.lines[current_dev_start:]),
+            }
 
     debug = DebugManager(
         DEBUG,
@@ -441,11 +532,41 @@ def process_project(
 
     for pdf in pdf_files:
 
-        if use_state:
-            successful_hashes.pop(pdf.name, None)
+        cached = previous_records.get(pdf.name) if use_state else None
+        unchanged_cached = (
+            use_state
+            and cached is not None
+            and cached.get("hash") == current_hashes[pdf.name]
+            and cached.get("status") == "REJECTED"
+            and isinstance(cached.get("entry"), dict)
+        )
+
+        if unchanged_cached:
+            print_info(f"Skipping unchanged PDF: {pdf.name}")
+
+            # Finalize any preceding reprocessed PDF before inserting this
+            # cached result; Report.save() must not append it a second time.
+            if report.current is not None:
+                report.files.append(report.current)
+                report.current = None
+
+            report.files.append(cached["entry"].copy())
+            dev_report.lines.extend(cached.get("dev_lines", []))
+
+            if cached.get("status") == "REJECTED":
+                processing_failed = True
+
+            if alerts is not None:
+                alerts.result(
+                    batch_project_name or project.name,
+                    pdf.name,
+                    cached["entry"],
+                )
+            continue
 
         # Start exactly one report entry for this PDF.
         report.begin_file(pdf.name)
+        current_dev_start = len(dev_report.lines)
         dev_report.begin_file(pdf.name)
 
         # ----------------------------------------------------
@@ -841,11 +962,7 @@ def process_project(
         # Record the complete final Report result for the Admin report.
         record_batch_result()
 
-        # PASS and WARNING files are successfully processed and can therefore
-        # be skipped on the next run if their PDF hash is unchanged.
-        if use_state:
-            successful_hashes[pdf.name] = current_hashes[pdf.name]
-
+        # The result and its hash are cached by record_batch_result().
         project.add(drawing)
 
     # ========================================================
@@ -864,12 +981,7 @@ def process_project(
         )
 
         if use_state:
-            if successful_hashes:
-                save_processing_state(folder, successful_hashes)
-            else:
-                state_file = processing_state_path(folder)
-                if state_file.exists():
-                    state_file.unlink()
+            save_processing_state(folder, processing_records)
 
         debug.finish()
         diag.end()
@@ -945,12 +1057,7 @@ def process_project(
     project.summary()
 
     if use_state:
-        if successful_hashes:
-            save_processing_state(folder, successful_hashes)
-        else:
-            state_file = processing_state_path(folder)
-            if state_file.exists():
-                state_file.unlink()
+        save_processing_state(folder, processing_records)
 
 def process_batch(batch_root: Path) -> None:
     """Process every project found under the selected batch root."""
