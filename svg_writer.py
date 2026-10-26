@@ -15,6 +15,7 @@ from config import (
     DISPLAY_STROKE_WIDTH_MM,
     LARGE_BED_WIDTH_MM,
     LARGE_BED_HEIGHT_MM,
+    OPTIMIZE_CUT_ORDER,
 )
 from drawing import Line, Bezier
 from project import Project
@@ -112,6 +113,86 @@ def _same_point(a, b, eps=1e-6):
     return abs(a.x - b.x) < eps and abs(a.y - b.y) < eps
 
 
+def _split_disconnected_subpaths(path):
+    """Split an unfilled stroke at discontinuities without changing geometry."""
+    if (
+        path.is_empty
+        or path.fill_color is not None
+        or getattr(path, "is_text", False)
+        or getattr(path, "closed", False)
+    ):
+        return [path]
+
+    groups = []
+    current = []
+    previous_end = None
+
+    for segment in path:
+        if current and not _same_point(segment.start, previous_end):
+            groups.append(current)
+            current = []
+        current.append(segment)
+        previous_end = segment.end
+
+    if current:
+        groups.append(current)
+
+    if len(groups) <= 1:
+        return [path]
+
+    from drawing import Path
+
+    result = []
+    for group in groups:
+        is_closed = (
+            getattr(path, "closed", False)
+            and _same_point(group[0].start, group[-1].end)
+        )
+
+        result.append(Path(
+            segments=list(group),
+            closed=is_closed,
+            stroke_color=path.stroke_color,
+            fill_color=path.fill_color,
+            stroke_width=path.stroke_width,
+            stroke_enabled=path.stroke_enabled,
+            fill_enabled=path.fill_enabled,
+            is_text=path.is_text,
+            import_order=path.import_order,
+        ))
+
+    return result
+
+
+def _nearest_neighbour_order(paths):
+    """Reorder whole strokes by travel distance; never reverse their direction."""
+    remaining = list(paths)
+    ordered = []
+    current_point = None
+
+    while remaining:
+        if current_point is None:
+            # Keep the first stroke stable.
+            index = 0
+        else:
+            def distance_squared(path):
+                start = path.segments[0].start
+                dx = start.x - current_point.x
+                dy = start.y - current_point.y
+                return dx * dx + dy * dy
+
+            index = min(
+                range(len(remaining)),
+                key=lambda i: distance_squared(remaining[i]),
+            )
+
+        chosen = remaining.pop(index)
+        ordered.append(chosen)
+        current_point = chosen.segments[-1].end
+
+    return ordered
+
+
 def _write_imported_path(parent, path):
     '''
     global PATH_INDEX
@@ -204,69 +285,62 @@ def _write_imported_path(parent, path):
 
 def _order_paths_for_laser(paths):
     """
-    Order paths for laser cutting.
-
-    Rule:
-    1. Non-blue artwork/engraving first.
-    2. Blue cutting paths next.
-    3. The outermost blue closed path last.
-
-    The final perimeter cut must always happen after all
-    interior cutting operations.
+    Order engraving first, then interior cuts, then closed cuts, with the
+    existing largest explicitly closed blue contour last.
     """
-
     BLUE = (0, 0, 255)
-
     engraving = []
     cutting = []
     closed_cutting = []
 
     for path in paths:
-
-        if path.stroke_color == BLUE:
-            if getattr(path, "closed", False):
-                closed_cutting.append(path)
-            else:
-                cutting.append(path)
-        else:
+        if path.stroke_color != BLUE:
             engraving.append(path)
+            continue
 
-    # Among closed blue paths, the largest one is assumed to be
-    # the final outer border.
-    def path_extent(path):
-        points = []
+        # Keep filled artwork/text intact.
+        if path.fill_color is not None or getattr(path, "is_text", False):
+            engraving.append(path)
+            continue
 
-        for obj in path:
-            if isinstance(obj, Line):
-                points.extend([obj.start, obj.end])
-
-            elif isinstance(obj, Bezier):
-                points.extend([
-                    obj.start,
-                    obj.control1,
-                    obj.control2,
-                    obj.end,
-                ])
-
-        if not points:
-            return 0
-
-        min_x = min(p.x for p in points)
-        max_x = max(p.x for p in points)
-        min_y = min(p.y for p in points)
-        max_y = max(p.y for p in points)
-
-        return (max_x - min_x) * (max_y - min_y)
-
-    outer_border = None
-
-    if closed_cutting:
-        outer_border = max(
-            closed_cutting,
-            key=path_extent,
+        pieces = (
+            _split_disconnected_subpaths(path)
+            if OPTIMIZE_CUT_ORDER
+            else [path]
         )
 
+        for piece in pieces:
+            if getattr(piece, "closed", False):
+                closed_cutting.append(piece)
+            else:
+                cutting.append(piece)
+
+    # Preserve the existing explicit-closed-path outer-border rule.
+    def path_extent(path):
+        points = []
+        for obj in path:
+            if isinstance(obj, Line):
+                points.extend((obj.start, obj.end))
+            elif isinstance(obj, Bezier):
+                points.extend((
+                    obj.start, obj.control1, obj.control2, obj.end
+                ))
+
+        if not points:
+            return 0.0
+
+        xs = [point.x for point in points]
+        ys = [point.y for point in points]
+        return (max(xs) - min(xs)) * (max(ys) - min(ys))
+
+    outer_border = None
+    if closed_cutting:
+        outer_border = max(closed_cutting, key=path_extent)
         closed_cutting.remove(outer_border)
+
+    if OPTIMIZE_CUT_ORDER:
+        cutting = _nearest_neighbour_order(cutting)
+        closed_cutting = _nearest_neighbour_order(closed_cutting)
 
     return (
         engraving
@@ -274,6 +348,7 @@ def _order_paths_for_laser(paths):
         + closed_cutting
         + ([outer_border] if outer_border is not None else [])
     )
+
 
 def write_svg(project: Project, filename: Path):
 
