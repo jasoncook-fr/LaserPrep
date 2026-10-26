@@ -96,7 +96,7 @@ COLLINEAR_MIN_OVERLAP_RATIO = 0.80
 # Number of non-exact overlap groups before a warning is issued.
 COLLINEAR_OVERLAP_WARNING_GROUPS = 100
 # Number of non-exact overlap groups at which the file is rejected.
-COLLINEAR_OVERLAP_REJECT_GROUPS = 500
+COLLINEAR_OVERLAP_REJECT_GROUPS = 700
 
 # Optional nearest-neighbour ordering of disconnected laser-cutting strokes.
 OPTIMIZE_CUT_ORDER = True

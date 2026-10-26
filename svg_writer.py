@@ -113,55 +113,100 @@ def _same_point(a, b, eps=1e-6):
     return abs(a.x - b.x) < eps and abs(a.y - b.y) < eps
 
 
-def _split_disconnected_subpaths(path):
-    """Split an unfilled stroke at discontinuities without changing geometry."""
-    if (
-        path.is_empty
-        or path.fill_color is not None
-        or getattr(path, "is_text", False)
-        or getattr(path, "closed", False)
-    ):
-        return [path]
-
+def _subpath_groups(path):
+    """Return contiguous segment groups without changing segment geometry."""
     groups = []
     current = []
     previous_end = None
-
     for segment in path:
         if current and not _same_point(segment.start, previous_end):
             groups.append(current)
             current = []
         current.append(segment)
         previous_end = segment.end
-
     if current:
         groups.append(current)
+    return groups
+
+
+def _make_path_like(path, segments, *, closed=False):
+    """Build a Path carrying the source path's style and exporter metadata."""
+    from drawing import Path
+    result = Path(
+        segments=list(segments), closed=closed,
+        stroke_color=path.stroke_color, fill_color=path.fill_color,
+        stroke_width=path.stroke_width, stroke_enabled=path.stroke_enabled,
+        fill_enabled=path.fill_enabled, is_text=path.is_text,
+        import_order=path.import_order,
+    )
+    for attribute in ("preserve_stroke_width", "is_black_engraving"):
+        if hasattr(path, attribute):
+            setattr(result, attribute, getattr(path, attribute))
+    return result
+
+
+def _group_extent(group):
+    points = []
+    for segment in group:
+        points.extend((segment.start, segment.end))
+        if isinstance(segment, Bezier):
+            points.extend((segment.control1, segment.control2))
+    if not points:
+        return 0.0
+    xs = [point.x for point in points]
+    ys = [point.y for point in points]
+    return (max(xs) - min(xs)) * (max(ys) - min(ys))
+
+def _reorder_disconnected_subpaths(path):
+    """Reorder disconnected open subpaths within one Path object.
+
+    Unlike splitting a path into separate Path objects, this keeps the number
+    of SVG path elements stable. Segment direction and geometry are preserved.
+    Filled paths, text, closed paths, and special black engraving paths are
+    left untouched because their closure/fill semantics may be significant.
+    """
+    if (
+        path.is_empty
+        or path.fill_color is not None
+        or getattr(path, "is_text", False)
+        or getattr(path, "closed", False)
+        or getattr(path, "is_black_engraving", False)
+    ):
+        return path
+
+    groups = _subpath_groups(path)
 
     if len(groups) <= 1:
-        return [path]
+        return path
 
-    from drawing import Path
+    # Greedily reorder the disconnected subpaths while never reversing any
+    # segment or changing the geometry within a subpath.
+    remaining = list(groups)
+    ordered = []
+    current_point = None
 
-    result = []
-    for group in groups:
-        is_closed = (
-            getattr(path, "closed", False)
-            and _same_point(group[0].start, group[-1].end)
-        )
+    while remaining:
+        if current_point is None:
+            index = 0  # Keep the first subpath stable as the starting point.
+        else:
+            def distance_squared(group):
+                start = group[0].start
+                dx = start.x - current_point.x
+                dy = start.y - current_point.y
+                return dx * dx + dy * dy
 
-        result.append(Path(
-            segments=list(group),
-            closed=is_closed,
-            stroke_color=path.stroke_color,
-            fill_color=path.fill_color,
-            stroke_width=path.stroke_width,
-            stroke_enabled=path.stroke_enabled,
-            fill_enabled=path.fill_enabled,
-            is_text=path.is_text,
-            import_order=path.import_order,
-        ))
+            index = min(
+                range(len(remaining)),
+                key=lambda i: distance_squared(remaining[i]),
+            )
 
-    return result
+        chosen = remaining.pop(index)
+        ordered.append(chosen)
+        current_point = chosen[-1].end
+
+    return _make_path_like(
+        path, [segment for group in ordered for segment in group], closed=False
+    )
 
 
 def _nearest_neighbour_order(paths):
@@ -176,7 +221,12 @@ def _nearest_neighbour_order(paths):
             index = 0
         else:
             def distance_squared(path):
-                start = path.segments[0].start
+                segments = list(path)
+
+                if not segments:
+                    return float("inf")
+
+                start = segments[0].start
                 dx = start.x - current_point.x
                 dy = start.y - current_point.y
                 return dx * dx + dy * dy
@@ -188,27 +238,19 @@ def _nearest_neighbour_order(paths):
 
         chosen = remaining.pop(index)
         ordered.append(chosen)
-        current_point = chosen.segments[-1].end
+
+        chosen_segments = list(chosen)
+        if chosen_segments:
+            current_point = chosen_segments[-1].end
 
     return ordered
 
 
 def _write_imported_path(parent, path):
-    '''
     global PATH_INDEX
-    PATH_INDEX += 1
-    if PATH_INDEX == 16:
-        print("\n" + "=" * 60)
-        print("PATH 16")
-        print("=" * 60)
-        print(f"closed = {path.closed}")
-        print(f"objects = {len(path.objects)}")
-
-        for i, obj in enumerate(path.objects):
-            print(i, type(obj).__name__, obj.start, "->", obj.end)
-    '''
     if path.is_empty:
         return
+    PATH_INDEX += 1
 
     d = []
     stroke = path.stroke_color
@@ -283,75 +325,113 @@ def _write_imported_path(parent, path):
     )
 
 
+
 def _order_paths_for_laser(paths):
-    """
-    Order engraving first, then interior cuts, then closed cuts, with the
-    existing largest explicitly closed blue contour last.
+    """Order engraving first, blue cuts next, and the largest geometrically
+    closed blue contour last. All other closed contours remain in the output.
     """
     BLUE = (0, 0, 255)
     engraving = []
     cutting = []
     closed_cutting = []
+    border_candidates = []
 
     for path in paths:
-        if path.stroke_color != BLUE:
+        if (
+            path.stroke_color != BLUE
+            or path.fill_color is not None
+            or getattr(path, "is_text", False)
+        ):
             engraving.append(path)
             continue
 
-        # Keep filled artwork/text intact.
-        if path.fill_color is not None or getattr(path, "is_text", False):
-            engraving.append(path)
+        # Explicitly closed paths stay intact and remain eligible for the
+        # outer-border selection, but are not discarded while selecting it.
+        if getattr(path, "closed", False):
+            segments = list(path)
+            if segments:
+                closed_cutting.append(path)
+                border_candidates.append(
+                    (_group_extent(segments), "path", path, None, path)
+                )
             continue
 
-        pieces = (
-            _split_disconnected_subpaths(path)
-            if OPTIMIZE_CUT_ORDER
-            else [path]
+        # Keep every disconnected subpath. Only one largest closed contour
+        # will later be extracted as the final border.
+        groups = _subpath_groups(path)
+        if not groups:
+            continue
+
+        for group in groups:
+            geometrically_closed = (
+                len(group) > 2 and _same_point(group[0].start, group[-1].end)
+            )
+            if geometrically_closed:
+                border_candidates.append(
+                    (_group_extent(group), "group", path, group, None)
+                )
+
+        # Rebuild this source path with all of its groups intact for now.
+        combined = _make_path_like(
+            path,
+            [segment for group in groups for segment in group],
+            closed=False,
         )
-
-        for piece in pieces:
-            if getattr(piece, "closed", False):
-                closed_cutting.append(piece)
-            else:
-                cutting.append(piece)
-
-    # Preserve the existing explicit-closed-path outer-border rule.
-    def path_extent(path):
-        points = []
-        for obj in path:
-            if isinstance(obj, Line):
-                points.extend((obj.start, obj.end))
-            elif isinstance(obj, Bezier):
-                points.extend((
-                    obj.start, obj.control1, obj.control2, obj.end
-                ))
-
-        if not points:
-            return 0.0
-
-        xs = [point.x for point in points]
-        ys = [point.y for point in points]
-        return (max(xs) - min(xs)) * (max(ys) - min(ys))
+        setattr(combined, "_laserprep_source_path", path)
+        cutting.append(combined)
 
     outer_border = None
-    if closed_cutting:
-        outer_border = max(closed_cutting, key=path_extent)
-        closed_cutting.remove(outer_border)
+    if border_candidates:
+        _, kind, source_path, border_group, whole_path = max(
+            border_candidates, key=lambda item: item[0]
+        )
+        if kind == "path":
+            outer_border = whole_path
+            closed_cutting = [p for p in closed_cutting if p is not whole_path]
+        else:
+            outer_border = _make_path_like(
+                source_path, border_group, closed=False
+            )
+            # Remove only the selected border group from the remaining path.
+            for index, original in enumerate(paths):
+                if original is source_path:
+                    groups = _subpath_groups(original)
+                    remaining_groups = [
+                        group for group in groups if group is not border_group
+                    ]
+                    cutting = [
+                        p for p in cutting
+                        if not (
+                            getattr(p, "_laserprep_source_path", None)
+                            is source_path
+                        )
+                    ]
+                    if remaining_groups:
+                        remainder = _make_path_like(
+                            source_path,
+                            [segment for group in remaining_groups for segment in group],
+                            closed=False,
+                        )
+                        setattr(remainder, "_laserprep_source_path", source_path)
+                        cutting.append(remainder)
+                    break
 
+    # Mark source paths so the selected contour can be removed cleanly without
+    # dropping any other subpaths from the same original path.
+    # (Rebuilds above preserve all non-border geometry.)
     if OPTIMIZE_CUT_ORDER:
+        engraving = [_reorder_disconnected_subpaths(path) for path in engraving]
+        engraving = _nearest_neighbour_order(engraving)
+        cutting = [_reorder_disconnected_subpaths(path) for path in cutting]
         cutting = _nearest_neighbour_order(cutting)
         closed_cutting = _nearest_neighbour_order(closed_cutting)
 
-    return (
-        engraving
-        + cutting
-        + closed_cutting
-        + ([outer_border] if outer_border is not None else [])
-    )
+    return engraving + cutting + closed_cutting + ([outer_border] if outer_border else [])
 
 
 def write_svg(project: Project, filename: Path):
-
+    global PATH_INDEX
+    PATH_INDEX = 0
     root = _svg_root()
 
     for drawing in project.drawings:
