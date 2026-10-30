@@ -82,10 +82,17 @@ class DeveloperReport:
             for rgb, count in sorted(colours.unsupported.items()):
                 self.lines.append(f"{rgb} : {count}")
 
-    def cleanup(self, removed_zero, removed_duplicates, corrected):
+    def cleanup(
+        self,
+        removed_zero,
+        removed_duplicates,
+        removed_near_duplicates,
+        corrected,
+    ):
         self.section("Cleanup")
         self.line("Zero-length removed", removed_zero)
         self.line("Duplicates removed", removed_duplicates)
+        self.line("Near-duplicates removed", removed_near_duplicates)
         self.line("Colours corrected", corrected)
 
     def statistics(self, stats):

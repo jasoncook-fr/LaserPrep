@@ -34,6 +34,7 @@ from geometry_cleanup import (
     analyse,
     remove_zero_length_lines,
     remove_duplicate_lines,
+    remove_near_duplicate_lines,
 )
 from config import (
     BATCH_ROOT,
@@ -1002,6 +1003,8 @@ def process_project(
 
         removed_zero = remove_zero_length_lines(drawing)
         removed_duplicates = remove_duplicate_lines(drawing)
+        removed_near_duplicates = remove_near_duplicate_lines(drawing)
+
         build_paths(drawing)
 
         process_black_engraving(drawing)
@@ -1009,12 +1012,14 @@ def process_project(
         report.cleanup(
             removed_zero,
             removed_duplicates,
+            removed_near_duplicates,
             normalization.corrected,
         )
 
         dev_report.cleanup(
             removed_zero,
             removed_duplicates,
+            removed_near_duplicates,
             normalization.corrected,
         )
 

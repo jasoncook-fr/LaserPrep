@@ -127,14 +127,28 @@ class Report:
                     f"Unsupported colour {colour} ({count} objects)."
                 )
 
-    def cleanup(self,zero,dup,col):
+    def cleanup(self, zero, dup, near_dup, col):
         self._ensure()
+
         if zero:
-            self.current["repairs"].append(f"Removed {zero} zero-length lines")
+            self.current["repairs"].append(
+                f"Removed {zero} zero-length lines"
+            )
+
         if dup:
-            self.current["repairs"].append(f"Removed {dup} duplicate lines")
+            self.current["repairs"].append(
+                f"Removed {dup} duplicate lines"
+            )
+
+        if near_dup:
+            self.current["repairs"].append(
+                f"Removed {near_dup} near-duplicate lines"
+            )
+
         if col:
-            self.current["repairs"].append(f"Corrected {col} colours")
+            self.current["repairs"].append(
+                f"Corrected {col} colours"
+            )
 
     def statistics(self,s):
         pass

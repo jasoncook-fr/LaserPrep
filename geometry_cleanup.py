@@ -441,6 +441,132 @@ def remove_duplicate_lines(drawing: Drawing) -> int:
 
     return removed
 
+# ============================================================
+# NEAR-DUPLICATE LINES
+# ============================================================
+
+# This is deliberately much stricter than the collinear-overlap
+# diagnostic. It only removes lines whose two endpoints describe the
+# same segment within a small positional tolerance.
+NEAR_DUPLICATE_ENDPOINT_TOLERANCE_MM = 0.05
+NEAR_DUPLICATE_MIN_LENGTH_MM = 1.0
+
+
+def _endpoint_distance(a, b) -> float:
+    return math.hypot(a.x - b.x, a.y - b.y)
+
+
+def _near_duplicate_match(a: Line, b: Line) -> bool:
+    """True only when both endpoints match, allowing reversed direction."""
+    if (
+        a.stroke_color != b.stroke_color
+        or a.stroke_width != b.stroke_width
+    ):
+        return False
+
+    if (
+        _line_length(a) < NEAR_DUPLICATE_MIN_LENGTH_MM
+        or _line_length(b) < NEAR_DUPLICATE_MIN_LENGTH_MM
+    ):
+        return False
+
+    direct = max(
+        _endpoint_distance(a.start, b.start),
+        _endpoint_distance(a.end, b.end),
+    )
+    reverse = max(
+        _endpoint_distance(a.start, b.end),
+        _endpoint_distance(a.end, b.start),
+    )
+
+    return min(direct, reverse) <= NEAR_DUPLICATE_ENDPOINT_TOLERANCE_MM
+
+
+def _endpoint_cell(point, cell_size: float) -> tuple[int, int]:
+    return (
+        math.floor(point.x / cell_size),
+        math.floor(point.y / cell_size),
+    )
+
+
+def _canonical_endpoint_cells(line: Line, cell_size: float):
+    """Return endpoint cells in a direction-independent order."""
+    points = sorted(
+        ((line.start.x, line.start.y, line.start),
+         (line.end.x, line.end.y, line.end)),
+        key=lambda item: (item[0], item[1]),
+    )
+    return (
+        _endpoint_cell(points[0][2], cell_size),
+        _endpoint_cell(points[1][2], cell_size),
+    )
+
+
+def remove_near_duplicate_lines(drawing: Drawing) -> int:
+    """Remove only near-identical full line segments.
+
+    A match requires the same stroke colour/width and both endpoints to
+    fall within 0.05 mm, allowing reversed direction. Partial overlaps,
+    parallel neighbours, and lines with different endpoints are retained.
+
+    If a line ambiguously matches more than one retained segment, no
+    automatic deletion is made for that line. As with exact duplicate
+    cleanup, the later imported object is retained for an unambiguous pair.
+    """
+    tolerance = NEAR_DUPLICATE_ENDPOINT_TOLERANCE_MM
+    buckets = {}
+    kept_indices = set()
+    removed_indices = set()
+    line_indices = []
+
+    for index, obj in enumerate(drawing.objects):
+        if not isinstance(obj, Line):
+            continue
+
+        line_indices.append(index)
+        cell_a, cell_b = _canonical_endpoint_cells(obj, tolerance)
+        style = (obj.stroke_color, obj.stroke_width)
+
+        # Search adjacent cells for both endpoints. This avoids a full
+        # O(n^2) comparison while still handling tolerance-boundary cases.
+        candidate_ids = set()
+        for da_x in (-1, 0, 1):
+            for da_y in (-1, 0, 1):
+                near_a = (cell_a[0] + da_x, cell_a[1] + da_y)
+                for db_x in (-1, 0, 1):
+                    for db_y in (-1, 0, 1):
+                        near_b = (cell_b[0] + db_x, cell_b[1] + db_y)
+                        key = (style, near_a, near_b)
+                        candidate_ids.update(buckets.get(key, ()))
+
+        matches = [
+            previous_index
+            for previous_index in candidate_ids
+            if previous_index in kept_indices
+            and _near_duplicate_match(drawing.objects[previous_index], obj)
+        ]
+
+        if len(matches) == 1:
+            # Keep the later imported object, matching existing exact cleanup.
+            previous_index = matches[0]
+            kept_indices.remove(previous_index)
+            removed_indices.add(previous_index)
+
+        # Ambiguous matches are intentionally retained for operator review.
+        kept_indices.add(index)
+
+        key = (style, cell_a, cell_b)
+        buckets.setdefault(key, []).append(index)
+
+    if not removed_indices:
+        return 0
+
+    drawing.objects = [
+        obj for index, obj in enumerate(drawing.objects)
+        if index not in removed_indices
+    ]
+    return len(removed_indices)
+
 
 
 
