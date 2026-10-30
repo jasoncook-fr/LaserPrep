@@ -469,6 +469,8 @@ def process_project(
 
     current_hashes = None
     preserve_cached_stems: set[str] = set()
+    missing_cached_warning_stems: set[str] = set()
+    reports_folder = folder / "reports"
 
     if use_state:
         current_hashes = {
@@ -482,10 +484,53 @@ def process_project(
             for name, record in previous_records.items()
         }
 
-        if current_hashes == previous_hashes and all(
+        cached_records_complete = all(
             previous_records.get(pdf.name, {}).get("status") is not None
             and isinstance(previous_records.get(pdf.name, {}).get("entry"), dict)
             for pdf in pdf_files
+        )
+
+        # A valid processing-state cache is not enough on its own: earlier
+        # versions could save the PDF outcomes while exiting before writing
+        # the project SVG or student-facing reports. Verify those artifacts
+        # before treating an unchanged project as fully processed.
+        has_exportable_drawing = any(
+            previous_records.get(pdf.name, {}).get("status") in {"PASS", "WARNING"}
+            for pdf in pdf_files
+        )
+
+        cached_outputs_complete = (
+            (reports_folder / f"{folder.name}.base_report.txt").is_file()
+            and (reports_folder / f"{folder.name}.extensive_report.txt").is_file()
+            and (
+                not has_exportable_drawing
+                or (folder / f"{folder.name}.svg").is_file()
+            )
+        )
+
+        for pdf in pdf_files:
+            entry = previous_records.get(pdf.name, {}).get("entry", {})
+            messages = entry.get("warnings", []) + entry.get("alerts", [])
+            has_overlap_warning = any(
+                "geometry overlap" in str(message).lower()
+                for message in messages
+            )
+            if not has_overlap_warning:
+                continue
+
+            warning_name = (
+                "Geometry_Overlap_Warning.svg"
+                if len(pdf_files) == 1
+                else f"Geometry_Overlap_Warning - {pdf.stem}.svg"
+            )
+            if not (reports_folder / warning_name).is_file():
+                missing_cached_warning_stems.add(pdf.stem)
+                cached_outputs_complete = False
+
+        if (
+            current_hashes == previous_hashes
+            and cached_records_complete
+            and cached_outputs_complete
         ):
             return True
 
@@ -507,8 +552,6 @@ def process_project(
 
     # Clear stale outputs only for files that will be reprocessed.
     cleanup_warning_outputs(folder, preserve_cached_stems)
-
-    reports_folder = folder / "reports"
 
     project = Project(folder.name)
     report = Report()
@@ -567,6 +610,7 @@ def process_project(
             and cached.get("hash") == current_hashes[pdf.name]
             and cached.get("status") == "REJECTED"
             and isinstance(cached.get("entry"), dict)
+            and pdf.stem not in missing_cached_warning_stems
         )
 
         if unchanged_cached:
@@ -763,7 +807,16 @@ def process_project(
         # This replaces the old O(n²) near-parallel scan as our first
         # production-safe investigation of the Zambala-type problem.
         collinear_result = analyse_collinear_overlap(drawing)
-        report.collinear_overlap(collinear_result)
+
+        warning_svg_name = (
+            "Geometry_Overlap_Warning.svg"
+            if len(pdf_files) == 1
+            else f"Geometry_Overlap_Warning - {pdf.stem}.svg"
+        )
+        report.collinear_overlap(
+            collinear_result,
+            visualization_filename=warning_svg_name,
+        )
 
         overlap_debug_svg = (
             folder / ".laserprep" / "debug" /
@@ -824,6 +877,8 @@ def process_project(
 
         #drawing.geometry_report = geometry
         geometry = analyse(drawing)
+        report.geometry(geometry)
+        dev_report.geometry(geometry)
 
         colors = analyse_colors(drawing)
 
@@ -862,7 +917,6 @@ def process_project(
         # ----------------------------------------------------
         # Choose the best orientation
         # ----------------------------------------------------
-
         rotated, normal_overflow, rotated_overflow = (
             drawing.choose_best_orientation(
                 LARGE_USABLE_WIDTH_MM,
@@ -928,9 +982,6 @@ def process_project(
             record_batch_result()
             continue
 
-        report.geometry(geometry)
-        dev_report.geometry(geometry)
-
         if suspicious_scale:
             report.suspicious_scale(
                 drawing,
@@ -988,36 +1039,12 @@ def process_project(
         project.add(drawing)
 
     # ========================================================
-    # Stop if processing failed
+    # Preserve geometry warning visualizations
     # ========================================================
 
-    if processing_failed:
-        report.save(
-            reports_folder / f"{project.name}.base_report.txt",
-            project.name,
-        )
-
-        dev_report.save(
-            reports_folder / f"{project.name}.extensive_report.txt",
-            project.name,
-        )
-
-        if use_state:
-            save_processing_state(folder, processing_records)
-
-        debug.finish()
-        diag.end()
-        return
-
-    # ========================================================
-    # Export SVG
-    # ========================================================
-
-    output_file = folder / f"{project.name}.svg"
-
-    # Preserve the student-facing geometry warning visualization in the
-    # permanent project reports folder. One file per source PDF avoids
-    # collisions in multi-PDF projects.
+    # These diagnostics must be copied even when another PDF in the
+    # project was rejected. A per-file rejection must not suppress
+    # reports or SVG output for otherwise eligible drawings.
     for overlap_debug_svg in collinear_warning_svgs:
         pdf_stem = overlap_debug_svg.name.removesuffix("_03_collinear_overlap.svg")
         target_name = (
@@ -1030,8 +1057,15 @@ def process_project(
             reports_folder / target_name,
         )
 
+    # ========================================================
+    # Export SVG
+    # ========================================================
+
+    output_file = folder / f"{project.name}.svg"
+
     # Do not create an empty SVG when no PDF produced usable geometry.
-    if not project.drawings and not processing_failed:
+    # Reports and processing state are still saved for rejected projects.
+    if not project.drawings:
         report.save(
             reports_folder / f"{project.name}.base_report.txt",
             project.name,
@@ -1042,10 +1076,14 @@ def process_project(
             project.name,
         )
 
-        print_error(
-            "ABORT: No usable vector geometry was found in the project. "
-            "No SVG was created."
-        )
+        if not processing_failed:
+            print_error(
+                "ABORT: No usable vector geometry was found in the project. "
+                "No SVG was created."
+            )
+
+        if use_state:
+            save_processing_state(folder, processing_records)
 
         debug.finish()
         diag.end()

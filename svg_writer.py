@@ -396,9 +396,15 @@ def _order_paths_for_laser(paths):
             for index, original in enumerate(paths):
                 if original is source_path:
                     groups = _subpath_groups(original)
+
+                    border_segment_ids = {id(segment) for segment in border_group}
+
                     remaining_groups = [
-                        group for group in groups if group is not border_group
+                        group
+                        for group in groups
+                        if not any(id(segment) in border_segment_ids for segment in group)
                     ]
+
                     cutting = [
                         p for p in cutting
                         if not (

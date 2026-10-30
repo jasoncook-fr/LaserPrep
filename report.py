@@ -73,7 +73,11 @@ class Report:
         if getattr(g,"tiny_lines",0):
             self.current["warnings"].append(f"{g.tiny_lines} tiny segments detected.")
 
-    def collinear_overlap(self, result):
+    def collinear_overlap(
+        self,
+        result,
+        visualization_filename="Geometry_Overlap_Warning.svg",
+    ):
         self._ensure()
         groups = result.get("non_exact_groups", 0)
 
@@ -90,7 +94,7 @@ class Report:
             self.current["alerts"].append(
                 f"Excessive potential geometry overlap: {groups} groups detected. "
                 f"Rejection threshold: {COLLINEAR_OVERLAP_REJECT_GROUPS} groups. "
-                "See Geometry_Overlap_Warning.svg in the project reports."
+                f"See {visualization_filename} in the project reports."
             )
 
         elif groups >= COLLINEAR_OVERLAP_WARNING_GROUPS:
@@ -98,7 +102,7 @@ class Report:
                 self.current["status"] = "WARNING"
             self.current["warnings"].append(
                 f"Potential geometry overlap: {groups} groups detected. "
-                "See Geometry_Overlap_Warning.svg in the project reports."
+                f"See {visualization_filename} in the project reports."
             )
 
     def suspicious_scale(self, drawing, object_count):
