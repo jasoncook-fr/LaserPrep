@@ -7,6 +7,7 @@ from pathlib import Path
 
 # declare batch processing ADMIN folders
 HOME = Path.home()
+REPORT_RETENTION_DAYS = 7
 
 BATCH_ROOT = HOME / "Nextcloud" / "LaserPrep" / "STUDENTS"
 ADMIN_ROOT = HOME / "Nextcloud" / "LaserPrep" / "ADMIN"

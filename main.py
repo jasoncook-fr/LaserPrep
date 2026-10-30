@@ -20,6 +20,7 @@ from geometry_statistics import analyse as geometry_statistics
 from topology import build_paths
 from black_engraving import process_black_engraving
 from pathlib import Path
+from datetime import datetime, timedelta
 import tkinter as tk
 from tkinter import filedialog
 from text_import import import_text
@@ -37,6 +38,7 @@ from geometry_cleanup import (
 from config import (
     BATCH_ROOT,
     ADMIN_ROOT,
+    REPORT_RETENTION_DAYS,
     DISPLAY_OFFSET_X_MM,
     DISPLAY_OFFSET_Y_MM,
     LARGE_USABLE_WIDTH_MM,
@@ -242,31 +244,58 @@ def save_processing_state(folder: Path, records: dict[str, dict]) -> None:
         json.dump(payload, f, indent=2, sort_keys=True)
     tmp_path.replace(state_file)
 
-def rejected_pdf_names(folder: Path) -> set[str]:
-    """Return PDF names explicitly marked REJECTED in the latest base report."""
-    report_path = folder / "reports" / f"{folder.name}.base_report.txt"
+def load_recent_rejections(retention_days: int) -> dict[str, set[str]]:
+    """Return rejected PDFs processed within the rolling activity window.
 
-    if not report_path.is_file():
-        return set()
+    The admin activity log is the source of truth. Old rejection entries are
+    ignored even if the student-facing base report still contains them.
+    """
+    activity_path = ADMIN_ROOT / "activity" / "BATCH_ACTIVITY.json"
 
-    rejected = set()
+    if not activity_path.is_file():
+        return {}
 
     try:
-        text = report_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return set()
+        with activity_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
 
-    for line in text.splitlines():
-        if not line.startswith("❌ "):
+    entries = data.get("entries", []) if isinstance(data, dict) else []
+    if not isinstance(entries, list):
+        return {}
+
+    cutoff = datetime.now().astimezone() - timedelta(
+        days=max(1, int(retention_days))
+    )
+    recent_rejections: dict[str, set[str]] = {}
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("status") != "REJECTED":
             continue
 
-        entry = line[2:]
-        if " (" in entry:
-            entry = entry.rsplit(" (", 1)[0]
+        project = entry.get("project")
+        pdf = entry.get("pdf")
+        processed_at = entry.get("processed_at")
+        if not all(isinstance(value, str) and value for value in (project, pdf, processed_at)):
+            continue
 
-        rejected.add(entry)
+        try:
+            timestamp = datetime.fromisoformat(processed_at)
+        except ValueError:
+            continue
 
-    return rejected
+        # Older activity-log entries should normally include a timezone.
+        # Treat a legacy naive timestamp as local time rather than discarding it.
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.astimezone()
+
+        if timestamp >= cutoff:
+            recent_rejections.setdefault(project, set()).add(pdf)
+
+    return recent_rejections
 
 
 def scan_batch_changes(batch_root: Path) -> list[dict]:
@@ -292,11 +321,15 @@ def scan_batch_changes(batch_root: Path) -> list[dict]:
                     (project_folder, f"{student_folder.name} / {project_folder.name}")
                 )
 
+    # Rejections are shown in Needs Attention only while they fall within
+    # the same rolling window as the administrative activity report.
+    recent_rejections = load_recent_rejections(REPORT_RETENTION_DAYS)
+
     for folder, batch_project_name in projects:
         pdf_files = sorted(folder.glob("*.pdf"))
         current_hashes = {pdf.name: pdf_hash(pdf) for pdf in pdf_files}
         previous_hashes = load_processing_state(folder)
-        rejected_names = rejected_pdf_names(folder)
+        rejected_names = recent_rejections.get(batch_project_name, set())
 
         new_files = sorted(
             name for name in current_hashes
@@ -425,7 +458,8 @@ def process_project(
     alerts: BatchAlerts | None = None,
     use_state: bool = True,
     batch_project_name: str | None = None,
-) -> None:
+    progress_label: str | None = None,
+) -> bool:
 
     pdf_files = sorted(folder.glob("*.pdf"))
 
@@ -453,16 +487,7 @@ def process_project(
             and isinstance(previous_records.get(pdf.name, {}).get("entry"), dict)
             for pdf in pdf_files
         ):
-            print_info(f"Skipping unchanged project: {folder}")
-            if alerts is not None:
-                for pdf in pdf_files:
-                    record = previous_records[pdf.name]
-                    alerts.result(
-                        batch_project_name or folder.name,
-                        pdf.name,
-                        record["entry"],
-                    )
-            return
+            return True
 
         # Keep cached results for PDFs whose contents have not changed.
         # New/changed PDFs will overwrite their previous records when processed.
@@ -520,6 +545,9 @@ def process_project(
     debug.start_run(project.name)
     diag.begin(project, folder)
 
+    if progress_label:
+        print_info(f"{progress_label} — {project.name}")
+
     print_info("=" * 60)
     print_info(f"Project : {project.name}")
     print_info(f"PDFs    : {len(pdf_files)}")
@@ -556,12 +584,6 @@ def process_project(
             if cached.get("status") == "REJECTED":
                 processing_failed = True
 
-            if alerts is not None:
-                alerts.result(
-                    batch_project_name or project.name,
-                    pdf.name,
-                    cached["entry"],
-                )
             continue
 
         # Start exactly one report entry for this PDF.
@@ -1092,20 +1114,32 @@ def process_batch(batch_root: Path) -> None:
     print_info(f"Found {len(projects)} projects.")
 
     alerts = BatchAlerts()
+    skipped_projects = 0
+    processed_projects = 0
 
     for i, (folder, batch_project_name) in enumerate(projects, start=1):
-        print_info("=" * 60)
-        print_info(f"Project {i} / {len(projects)}")
-        print_info(str(folder))
-        print_info("=" * 60)
-        process_project(
+        was_skipped = process_project(
             folder,
             alerts,
             use_state=True,
             batch_project_name=batch_project_name,
+            progress_label=f"Project {i} / {len(projects)}",
         )
 
-    alerts.save(ADMIN_ROOT)
+        if was_skipped:
+            skipped_projects += 1
+        else:
+            processed_projects += 1
+
+    alerts.save(ADMIN_ROOT, retention_days=REPORT_RETENTION_DAYS)
+
+    print_info("=" * 60)
+    print_info("Batch summary")
+    print_info("=" * 60)
+    print_info(f"Projects found     : {len(projects)}")
+    print_info(f"Projects processed : {processed_projects}")
+    print_info(f"Projects skipped   : {skipped_projects}")
+    print_info("=" * 60)
 
 
 def launch_gui() -> None:
