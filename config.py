@@ -95,7 +95,7 @@ COLLINEAR_MIN_OVERLAP_RATIO = 0.80
 # Collinear / redundant geometry warning thresholds
 # ------------------------------------------------------------
 # Number of non-exact overlap groups before a warning is issued.
-COLLINEAR_OVERLAP_WARNING_GROUPS = 100
+COLLINEAR_OVERLAP_WARNING_GROUPS = 300
 # Number of non-exact overlap groups at which the file is rejected.
 COLLINEAR_OVERLAP_REJECT_GROUPS = 700
 

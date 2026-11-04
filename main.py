@@ -53,6 +53,8 @@ from debug_manager import DebugManager
 from config import DEBUG
 from report import Report
 from report_dev import DeveloperReport
+from nextcloud_lookup import get_student_emails
+from notification_manager import NotificationManager
 from collinear_overlap_diagnostic import (
     analyse_collinear_overlap,
     format_report as format_collinear_overlap_report,
@@ -460,13 +462,13 @@ def process_project(
     use_state: bool = True,
     batch_project_name: str | None = None,
     progress_label: str | None = None,
-) -> bool:
+) -> str:
 
     pdf_files = sorted(folder.glob("*.pdf"))
 
     if not pdf_files:
         print_warning(f"No PDF files found in {folder}")
-        return
+        return "no_output"
 
     current_hashes = None
     preserve_cached_stems: set[str] = set()
@@ -533,7 +535,7 @@ def process_project(
             and cached_records_complete
             and cached_outputs_complete
         ):
-            return True
+            return "skipped"
 
         # Keep cached results for PDFs whose contents have not changed.
         # New/changed PDFs will overwrite their previous records when processed.
@@ -1092,7 +1094,7 @@ def process_project(
 
         debug.finish()
         diag.end()
-        return
+        return "completed"
 
     print_info("Writing SVG...")
 
@@ -1124,7 +1126,12 @@ def process_project(
     if use_state:
         save_processing_state(folder, processing_records)
 
-def process_batch(batch_root: Path) -> None:
+    return "completed"
+
+def process_batch(
+    batch_root: Path,
+    send_notifications: bool = True,
+) -> None:
     """Process every project found under the selected batch root."""
 
     if not batch_root.exists():
@@ -1156,12 +1163,46 @@ def process_batch(batch_root: Path) -> None:
 
     print_info(f"Found {len(projects)} projects.")
 
+    # Retrieve the current student shares once per batch. If Nextcloud is
+    # unavailable, processing continues and pending notifications can retry
+    # during a later batch.
+    notifications = None
+
+    if send_notifications:
+        # Retrieve student shares once per batch.
+        try:
+            student_emails = get_student_emails()
+            print_info(
+                f"Retrieved {len(student_emails)} student email mappings "
+                "from Nextcloud."
+            )
+        except Exception as exc:
+            student_emails = {}
+            print_warning(
+                f"Could not retrieve student shares from Nextcloud: {exc}. "
+                "Email notifications will be deferred."
+            )
+
+        try:
+            notifications = NotificationManager(
+                ADMIN_ROOT,
+                batch_root,
+                student_emails,
+            )
+        except Exception as exc:
+            print_warning(
+                f"Could not initialize notification history: {exc}. "
+                "Email notifications are disabled for this batch."
+            )
+    else:
+        print_info("Email notifications are disabled for this batch.")
+
     alerts = BatchAlerts()
     skipped_projects = 0
     processed_projects = 0
 
     for i, (folder, batch_project_name) in enumerate(projects, start=1):
-        was_skipped = process_project(
+        result = process_project(
             folder,
             alerts,
             use_state=True,
@@ -1169,10 +1210,34 @@ def process_batch(batch_root: Path) -> None:
             progress_label=f"Project {i} / {len(projects)}",
         )
 
-        if was_skipped:
+        if result == "skipped":
             skipped_projects += 1
         else:
             processed_projects += 1
+
+        # A project folder is either the student folder itself (PDFs directly
+        # inside it) or one level below the student folder.
+        student_folder_name = (
+            folder.name if folder.parent == batch_root else folder.parent.name
+        )
+
+        if notifications is not None:
+            try:
+                if result == "completed":
+                    notifications.queue(folder, batch_project_name)
+                    notifications.attempt(folder, student_folder_name)
+                elif result == "skipped":
+                    # Retry a previously queued email if the project was
+                    # previously completed, but email delivery/share lookup failed.
+                    notifications.attempt(folder, student_folder_name)
+                else:
+                    # No PDF was available to process.
+                    notifications.clear(folder)
+            except Exception as exc:
+                # Notification bookkeeping must never interrupt batch processing.
+                print_warning(
+                    f"Notification handling failed for {batch_project_name}: {exc}"
+                )
 
     alerts.save(ADMIN_ROOT, retention_days=REPORT_RETENTION_DAYS)
 
@@ -1220,6 +1285,7 @@ def launch_gui() -> None:
 
     batch_root_var = tk.StringVar(value=str(BATCH_ROOT))
     status_var = tk.StringVar(value="Ready")
+    email_notifications_var = tk.BooleanVar(value=True)
     single_expanded_var = tk.BooleanVar(value=False)
     new_changed_expanded_var = tk.BooleanVar(value=False)
     attention_expanded_var = tk.BooleanVar(value=False)
@@ -1479,8 +1545,13 @@ def launch_gui() -> None:
             status_var.set("The selected Batch Root does not exist.")
             return
 
+        send_notifications = email_notifications_var.get()
+
         root.destroy()
-        process_batch(batch_root)
+        process_batch(
+            batch_root,
+            send_notifications=send_notifications,
+        )
 
     # --------------------------------------------------------
     # Main container
@@ -1632,6 +1703,19 @@ def launch_gui() -> None:
         bd=0,
     )
     preview_refresh_button.pack(side="left", padx=(6, 0))
+
+    tk.Checkbutton(
+        batch_frame,
+        text="Send student email notifications",
+        variable=email_notifications_var,
+        bg=BATCH_BG,
+        fg=TEXT,
+        activebackground=BATCH_BG,
+        activeforeground=TEXT,
+        selectcolor=BATCH_BG,
+        font=body_font,
+        anchor="w",
+    ).pack(fill="x", pady=(12, 0))
 
     preview_area = tk.Frame(batch_frame, bg=BATCH_BG)
     preview_area.pack(fill="both", expand=True, pady=(14, 0))
