@@ -322,6 +322,20 @@ When the notification checkbox is disabled, LaserPrep does not perform the Nextc
 
 Single Project mode does not send student notifications.
 
+### Nextcloud SSL certificate configuration
+
+Some Nextcloud servers may present an incomplete SSL certificate chain. If the required intermediate certificate is not available on the system, LaserPrep may fail to connect to Nextcloud and retrieve student email addresses.
+
+If this occurs, the missing intermediate certificate can be installed locally:
+
+```bash
+mkdir -p ~/.config/laserprep/certs
+```
+
+Save the required intermediate certificate in this directory. LaserPrep will automatically load it alongside the system's trusted CA certificates, while retaining normal SSL verification.
+
+This is an optional, site-specific workaround. The permanent solution is for the server administrator to configure the server to provide the complete certificate chain.
+
 ---
 
 ## Installation

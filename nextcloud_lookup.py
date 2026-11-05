@@ -15,6 +15,14 @@ from urllib.request import Request, urlopen
 
 CONFIG_FILE = Path.home() / ".config" / "laserprep" / "email.env"
 
+CERTIFICATE_FILE = (
+    Path.home()
+    / ".config"
+    / "laserprep"
+    / "certs"
+    / "HARICA-GEANT-TLS-E1.pem"
+)
+
 SHARES_ENDPOINT = (
     "/ocs/v2.php/apps/files_sharing/api/v1/shares"
 )
@@ -91,6 +99,9 @@ def get_student_emails() -> dict[str, str]:
     )
 
     context = ssl.create_default_context()
+
+    if CERTIFICATE_FILE.is_file():
+        context.load_verify_locations(cafile=str(CERTIFICATE_FILE))
 
     try:
         with urlopen(request, context=context, timeout=20) as response:
