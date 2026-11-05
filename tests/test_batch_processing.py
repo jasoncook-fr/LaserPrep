@@ -286,7 +286,7 @@ def setup_process_batch_mocks(monkeypatch):
     notification_events = []
 
     class FakeAlerts:
-        def save(self, admin_root, retention_days):
+        def save(self, admin_root, retention_days, notification_summary=None):
             pass
 
     class FakeNotifications:
@@ -301,6 +301,16 @@ def setup_process_batch_mocks(monkeypatch):
 
         def clear(self, folder):
             notification_events.append(("clear", folder.name))
+
+        def record_pending(self, project_name, detail):
+            notification_events.append(("pending", project_name, detail))
+
+        def get_run_summary(self):
+            return {
+                "status": "enabled",
+                "sent": [],
+                "pending": [],
+            }
 
     monkeypatch.setattr(batch_processing, "BatchAlerts", FakeAlerts)
     monkeypatch.setattr(
@@ -513,6 +523,16 @@ def test_process_batch_notification_failure_does_not_stop_processing(
 
         def clear(self, *args):
             pass
+
+        def record_pending(self, *args):
+            pass
+
+        def get_run_summary(self):
+            return {
+                "status": "enabled",
+                "sent": [],
+                "pending": [],
+            }
 
     monkeypatch.setattr(
         batch_processing,

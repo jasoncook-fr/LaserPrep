@@ -122,6 +122,7 @@ def process_batch(
 
     print_info(f"Found {len(projects)} projects.")
     notifications = None
+    notification_status = "disabled"
 
     if send_notifications:
         try:
@@ -140,7 +141,9 @@ def process_batch(
             notifications = NotificationManager(
                 ADMIN_ROOT, batch_root, student_emails
             )
+            notification_status = "enabled"
         except Exception as exc:
+            notification_status = "unavailable"
             print_warning(
                 f"Could not initialize notification history: {exc}. "
                 "Email notifications are disabled for this batch."
@@ -179,11 +182,29 @@ def process_batch(
                 else:
                     notifications.clear(folder)
             except Exception as exc:
+                if hasattr(notifications, "record_pending"):
+                    notifications.record_pending(
+                        batch_project_name,
+                        f"Notification handling failed: {exc}",
+                    )
                 print_warning(
                     f"Notification handling failed for {batch_project_name}: {exc}"
                 )
 
-    alerts.save(ADMIN_ROOT, retention_days=REPORT_RETENTION_DAYS)
+    if notifications is not None:
+        notification_summary = notifications.get_run_summary()
+    else:
+        notification_summary = {
+            "status": notification_status,
+            "sent": [],
+            "pending": [],
+        }
+
+    alerts.save(
+        ADMIN_ROOT,
+        retention_days=REPORT_RETENTION_DAYS,
+        notification_summary=notification_summary,
+    )
     print_info("=" * 60)
     print_info("Batch summary")
     print_info("=" * 60)

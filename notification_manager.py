@@ -24,6 +24,7 @@ class NotificationManager:
         self.state_dir = admin_root / "notifications"
         self.state_file = self.state_dir / "notification_state.json"
         self.records = self._load_state()
+        self.run_results: list[dict] = []
 
     def _load_state(self) -> dict:
         if not self.state_file.is_file():
@@ -127,6 +128,10 @@ class NotificationManager:
 
         recipient = self.student_emails.get(student_folder_name)
         if not recipient:
+            self.record_pending(
+                record.get("project_label", folder.name),
+                "No student email address found",
+            )
             print(
                 f"WARNING: No Nextcloud student share/email found for "
                 f"{student_folder_name}; notification remains pending."
@@ -138,11 +143,21 @@ class NotificationManager:
         try:
             send_project_notification(recipient, project_label)
         except Exception as exc:
+            self.record_pending(
+                project_label,
+                f"Email delivery failed: {exc}",
+            )
             print(
                 f"WARNING: Could not send notification for "
                 f"{project_label}: {exc}"
             )
             return
+
+        self.run_results.append({
+            "project": project_label,
+            "status": "sent",
+            "detail": "",
+        })
 
         record["status"] = "sent"
         record["sent_at"] = datetime.now().astimezone().isoformat(
@@ -160,3 +175,25 @@ class NotificationManager:
             return
 
         print(f"Notification recorded for {project_label}.")
+
+    def record_pending(self, project_label: str, detail: str) -> None:
+        """Record a notification that could not be completed in this run."""
+        self.run_results.append({
+            "project": project_label,
+            "status": "pending",
+            "detail": detail,
+        })
+
+    def get_run_summary(self) -> dict:
+        """Return notification outcomes from the current batch run."""
+        return {
+            "status": "enabled",
+            "sent": [
+                result for result in self.run_results
+                if result["status"] == "sent"
+            ],
+            "pending": [
+                result for result in self.run_results
+                if result["status"] == "pending"
+            ],
+        }

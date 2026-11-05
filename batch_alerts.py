@@ -50,7 +50,10 @@ class BatchAlerts:
         except (TypeError, ValueError):
             return None
 
-    def save(self, folder: Path, retention_days: int = 7) -> None:
+    def save(
+        self, folder: Path, retention_days: int = 7,
+        notification_summary: dict | None = None,
+    ) -> None:
         """Update the rolling activity log and write current + history reports."""
         folder.mkdir(parents=True, exist_ok=True)
         activity_dir = folder / "activity"
@@ -218,6 +221,39 @@ class BatchAlerts:
         append_grouped_section("ACCEPTED", "✅", accepted)
         append_grouped_section("REJECTED", "❌", rejected, "rejected")
         append_grouped_section("WARNINGS", "⚠️", warnings, "warnings")
+
+        lines.extend([
+            "EMAIL NOTIFICATION SUMMARY\n",
+            "-" * 60 + "\n",
+        ])
+
+        notification_summary = notification_summary or {
+            "status": "unavailable",
+            "sent": [],
+            "pending": [],
+        }
+        notification_status = notification_summary.get("status", "unavailable")
+
+        if notification_status == "disabled":
+            lines.append("Email notifications were disabled for this run.\n\n")
+        elif notification_status == "unavailable":
+            lines.append("Notification tracking was unavailable for this run.\n\n")
+        else:
+            sent = notification_summary.get("sent", [])
+            pending = notification_summary.get("pending", [])
+            lines.append(f"Emails sent successfully : {len(sent)}\n")
+            lines.append(f"Notifications pending    : {len(pending)}\n")
+
+            if pending:
+                lines.append("\nPENDING NOTIFICATIONS\n")
+                for item in pending:
+                    project = item.get("project", "Unknown project")
+                    detail = item.get("detail", "")
+                    lines.append(f"  • {project}")
+                    if detail:
+                        lines.append(f" — {detail}")
+                    lines.append("\n")
+            lines.append("\n")
 
         report = "".join(lines)
         (folder / "CURRENT_BATCH_REPORT.txt").write_text(report, encoding="utf-8")
