@@ -296,12 +296,43 @@ class BatchAlerts:
                     ),
                     Paragraph(f"Processed: {escape(stamp)}", styles["ReportSmall"]),
                 ]
+                from reportlab.graphics.shapes import Drawing, Polygon, Rect
+
+                status_colors = {
+                    "PASS": "#39834B",
+                    "WARNING": "#C58A21",
+                    "REJECTED": "#C44747",
+                }
                 for entry in latest_run:
                     if entry["project"] == project:
-                        group.append(Paragraph(
-                            f"&bull;&nbsp; {escape(entry['pdf'])}",
-                            styles["ReportBullet"],
+                        status_color = status_colors.get(
+                            entry.get("status", "PASS"), "#667085"
+                        )
+                        file_icon = Drawing(7, 9)
+                        file_icon.add(Rect(
+                            0, 0, 6, 8,
+                            fillColor=colors.HexColor(status_color),
+                            strokeColor=None,
                         ))
+                        file_icon.add(Polygon(
+                            [4, 8, 6, 6, 4, 6],
+                            fillColor=colors.white,
+                            strokeColor=None,
+                        ))
+                        file_row = Table(
+                            [[file_icon, Paragraph(
+                                escape(entry["pdf"]), styles["ReportBullet"]
+                            )]],
+                            colWidths=[8, None],
+                        )
+                        file_row.setStyle(TableStyle([
+                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                            ("TOPPADDING", (0, 0), (-1, -1), 0),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                        ]))
+                        group.append(file_row)
                 story.extend(group)
         else:
             story.append(Paragraph(
@@ -341,11 +372,56 @@ class BatchAlerts:
         ]))
         story.append(summary_table)
 
+        # Colour-coded result sections. Each section is a single table with
+        # a repeating category banner, so long sections remain identifiable
+        # when they continue onto another page.
+        category_styles = {
+            "Accepted": {
+                "fill": colors.HexColor("#EAF4EC"),
+                "accent": colors.HexColor("#39834B"),
+                "text": colors.HexColor("#245B32"),
+            },
+            "Rejected": {
+                "fill": colors.HexColor("#FCEDEC"),
+                "accent": colors.HexColor("#C44747"),
+                "text": colors.HexColor("#8F2929"),
+            },
+            "Warnings": {
+                "fill": colors.HexColor("#FFF4DF"),
+                "accent": colors.HexColor("#C58A21"),
+                "text": colors.HexColor("#805A13"),
+            },
+        }
+
+        styles.add(ParagraphStyle(
+            name="CategoryBanner",
+            parent=styles["ReportBody"],
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=13,
+            spaceAfter=0,
+        ))
+        styles.add(ParagraphStyle(
+            name="ProjectHeadingInSection",
+            parent=styles["ReportBody"],
+            fontName="Helvetica-Bold",
+            fontSize=9,
+            leading=11,
+            textColor=colors.HexColor("#263445"),
+            spaceAfter=0.8 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="SectionDetail",
+            parent=styles["ReportBullet"],
+            fontSize=8,
+            leading=10.5,
+            spaceAfter=0.6 * mm,
+        ))
+
         def append_grouped_section(title, results, detail_key=None):
             if not results:
                 return
 
-            add_section(title)
             grouped = {}
             for result in results:
                 grouped.setdefault(result["project"], []).append(result)
@@ -357,7 +433,22 @@ class BatchAlerts:
                 ),
                 reverse=True,
             )
-            for project in projects:
+
+            palette = category_styles[title]
+            banner = Paragraph(
+                f"<font color='{palette['text'].hexval()}'>{escape(title.upper())}"
+                f" &nbsp;&nbsp;·&nbsp;&nbsp; {len(results)} "
+                f"{'file' if len(results) == 1 else 'files'}</font>",
+                styles["CategoryBanner"],
+            )
+            table_data = [[banner]]
+            project_row_indices = []
+
+            def detail_paragraph(text, small=False):
+                style = styles["ReportSmall"] if small else styles["SectionDetail"]
+                return Paragraph(text, style)
+
+            for project_index, project in enumerate(projects):
                 project_results = sorted(
                     grouped[project],
                     key=lambda item: item["processed_at"],
@@ -365,12 +456,8 @@ class BatchAlerts:
                 )
                 newest = self._parse_timestamp(project_results[0]["processed_at"])
                 stamp = newest.astimezone().strftime("%d %b %Y at %H:%M")
-                group = [Paragraph(
-                    f"{escape(project)}"
-                    f"<font color='#667085'> — {escape(stamp)}</font>",
-                    styles["ProjectHeading"],
-                )]
 
+                details = []
                 if detail_key == "warnings":
                     overlap_files = []
                     other_warnings = []
@@ -378,58 +465,105 @@ class BatchAlerts:
                     for result in project_results:
                         for warning in result.get("warnings", []):
                             match = re.search(
-                                r"Potential geometry overlap:\s*(\d+)\s+groups? detected",
+                                r"Potential geometry overlap:\\s*(\\d+)\\s+groups? detected",
                                 warning,
                                 re.IGNORECASE,
                             )
                             if match:
-                                overlap_files.append((result["pdf"], int(match.group(1))))
+                                overlap_files.append(
+                                    (result["pdf"], int(match.group(1)))
+                                )
                             else:
                                 other_warnings.append((result["pdf"], warning))
 
                     for filename, group_count in overlap_files:
-                        group.append(Paragraph(
+                        details.append(detail_paragraph(
                             f"&bull;&nbsp; {escape(filename)} — "
-                            f"{group_count} overlap groups",
-                            styles["ReportBullet"],
+                            f"{group_count} overlap groups"
                         ))
 
                     if overlap_files:
                         file_word = "file" if len(overlap_files) == 1 else "files"
-                        group.append(Paragraph(
+                        details.append(detail_paragraph(
                             f"Potential geometry overlap detected in "
                             f"{len(overlap_files)} {file_word}.",
-                            styles["ReportSmall"],
+                            small=True,
                         ))
 
                     for filename, warning in other_warnings:
-                        group.append(Paragraph(
-                            f"&bull;&nbsp; {escape(filename)}",
-                            styles["ReportBullet"],
+                        details.append(detail_paragraph(
+                            f"&bull;&nbsp; {escape(filename)}"
                         ))
-                        group.append(Paragraph(
+                        details.append(detail_paragraph(
                             f"&nbsp;&nbsp;&nbsp; {escape(warning)}",
-                            styles["ReportSmall"],
+                            small=True,
                         ))
                 else:
                     for result in project_results:
-                        group.append(Paragraph(
-                            f"&bull;&nbsp; {escape(result['pdf'])}",
-                            styles["ReportBullet"],
+                        details.append(detail_paragraph(
+                            f"&bull;&nbsp; {escape(result['pdf'])}"
                         ))
                         if detail_key == "rejected":
                             for alert in result.get("alerts", []):
-                                group.append(Paragraph(
+                                details.append(detail_paragraph(
                                     f"&nbsp;&nbsp;&nbsp; {escape(str(alert))}",
-                                    styles["ReportSmall"],
+                                    small=True,
                                 ))
                             for warning in result.get("warnings", []):
-                                group.append(Paragraph(
+                                details.append(detail_paragraph(
                                     f"&nbsp;&nbsp;&nbsp; Warning: "
                                     f"{escape(str(warning))}",
-                                    styles["ReportSmall"],
+                                    small=True,
                                 ))
-                story.extend(group)
+
+                project_heading = Paragraph(
+                    f"{escape(project)}"
+                    f"<font color='#667085'> — {escape(stamp)}</font>",
+                    styles["ProjectHeadingInSection"],
+                )
+
+                # Keep the project heading with its first detail line. Further
+                # lines occupy their own rows and can flow across pages.
+                first_detail = details.pop(0) if details else Paragraph(
+                    "No additional details.", styles["ReportSmall"]
+                )
+                table_data.append([[project_heading, first_detail]])
+                project_row_indices.append(len(table_data) - 1)
+
+                for detail in details:
+                    table_data.append([detail])
+
+                if project_index < len(projects) - 1:
+                    table_data.append([Paragraph("&nbsp;", styles["ReportSmall"])])
+
+            section_table = Table(
+                table_data,
+                colWidths=[170 * mm],
+                repeatRows=1,
+                splitByRow=1,
+                hAlign="LEFT",
+            )
+            table_commands = [
+                ("BACKGROUND", (0, 0), (-1, 0), palette["fill"]),
+                ("BOX", (0, 0), (-1, 0), 0.5, palette["accent"]),
+                ("LINEBEFORE", (0, 0), (0, 0), 3, palette["accent"]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 3 * mm),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 3 * mm),
+                ("TOPPADDING", (0, 0), (-1, 0), 2.5 * mm),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 2.5 * mm),
+                ("TOPPADDING", (0, 1), (-1, -1), 1.2 * mm),
+                ("BOTTOMPADDING", (0, 1), (-1, -1), 0.8 * mm),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+            for row_index in project_row_indices:
+                table_commands.extend([
+                    ("LINEABOVE", (0, row_index), (-1, row_index),
+                     0.35, colors.HexColor("#E4E7EC")),
+                ])
+            section_table.setStyle(TableStyle(table_commands))
+            story.append(Spacer(1, 3 * mm))
+            story.append(section_table)
+            story.append(Spacer(1, 2 * mm))
 
         append_grouped_section("Accepted", accepted)
         append_grouped_section("Rejected", rejected, "rejected")
