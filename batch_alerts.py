@@ -112,16 +112,173 @@ class BatchAlerts:
         )
         latest_project_name = latest_project["project"] if latest_project else None
 
-        lines = [
-            "=" * 60 + "\n",
-            "LaserPrep Batch Report\n",
-            "=" * 60 + "\n",
-            f"Rolling activity window: {retention_days} days\n",
-            f"Report generated: {now.strftime('%d %b %Y · %H:%M')}\n\n",
-            "LAST PROCESSED FILES\n",
-            "-" * 60 + "\n",
+        from xml.sax.saxutils import escape
+
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import (
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        )
+
+        notification_summary = notification_summary or {
+            "status": "unavailable",
+            "sent": [],
+            "pending": [],
+        }
+        notification_status = notification_summary.get("status", "unavailable")
+        sent = notification_summary.get("sent", [])
+        pending = notification_summary.get("pending", [])
+
+        report_path = folder / "CURRENT_BATCH_REPORT.pdf"
+        timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
+        history_path = history_folder / f"{timestamp}.pdf"
+
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(
+            name="ReportTitle",
+            parent=styles["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=21,
+            leading=25,
+            alignment=TA_LEFT,
+            textColor=colors.HexColor("#202936"),
+            spaceAfter=2 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="ReportSubtitle",
+            parent=styles["Normal"],
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor("#667085"),
+            spaceAfter=5 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="SectionHeading",
+            parent=styles["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=12,
+            leading=15,
+            textColor=colors.HexColor("#263445"),
+            spaceBefore=5 * mm,
+            spaceAfter=2 * mm,
+            keepWithNext=True,
+        ))
+        styles.add(ParagraphStyle(
+            name="ProjectHeading",
+            parent=styles["Heading3"],
+            fontName="Helvetica-Bold",
+            fontSize=9.5,
+            leading=12,
+            textColor=colors.HexColor("#344054"),
+            spaceBefore=2.5 * mm,
+            spaceAfter=1 * mm,
+            keepWithNext=True,
+        ))
+        styles.add(ParagraphStyle(
+            name="ReportBody",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor("#344054"),
+            spaceAfter=1 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="ReportSmall",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=7.5,
+            leading=9.5,
+            textColor=colors.HexColor("#667085"),
+        ))
+        styles.add(ParagraphStyle(
+            name="ReportBullet",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=8,
+            leading=10.5,
+            leftIndent=4 * mm,
+            firstLineIndent=-2.5 * mm,
+            textColor=colors.HexColor("#344054"),
+            spaceAfter=0.7 * mm,
+        ))
+        styles.add(ParagraphStyle(
+            name="ReportStatus",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor("#344054"),
+        ))
+
+        story = [
+            Paragraph("LaserPrep Batch Report", styles["ReportTitle"]),
+            Paragraph(
+                f"Generated {escape(now.strftime('%d %b %Y at %H:%M'))}"
+                f" &nbsp;&nbsp;|&nbsp;&nbsp; Rolling activity window: "
+                f"{retention_days} days",
+                styles["ReportSubtitle"],
+            ),
         ]
 
+        def add_section(title):
+            story.append(Paragraph(escape(title), styles["SectionHeading"]))
+
+        def add_bullet(text):
+            story.append(Paragraph(
+                f"&bull;&nbsp; {text}",
+                styles["ReportBullet"],
+            ))
+
+        # Email notification summary
+        add_section("Email notifications")
+        if notification_status == "disabled":
+            notification_text = "Email notifications were disabled for this run."
+            notification_fill = colors.HexColor("#F2F4F7")
+        elif notification_status == "unavailable":
+            notification_text = "Notification tracking was unavailable for this run."
+            notification_fill = colors.HexColor("#FFF4E5")
+        else:
+            notification_text = (
+                f"Emails sent successfully: <b>{len(sent)}</b>"
+                f"&nbsp;&nbsp;&nbsp; Notifications pending: <b>{len(pending)}</b>"
+            )
+            notification_fill = colors.HexColor("#F2F7F4")
+
+        notification_rows = [[
+            Paragraph( notification_text, styles["ReportStatus"])
+        ]]
+        notification_table = Table(notification_rows, colWidths=[170 * mm])
+        notification_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), notification_fill),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#D0D5DD")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 3 * mm),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 3 * mm),
+            ("TOPPADDING", (0, 0), (-1, -1), 2.5 * mm),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5 * mm),
+        ]))
+        story.append(notification_table)
+
+        if notification_status == "enabled" and pending:
+            story.append(Spacer(1, 2 * mm))
+            story.append(Paragraph("Pending notifications", styles["ProjectHeading"]))
+            for item in pending:
+                project = escape(str(item.get("project", "Unknown project")))
+                detail = escape(str(item.get("detail", "")))
+                text = f"<b>{project}</b>"
+                if detail:
+                    text += f" — {detail}"
+                add_bullet(text)
+
+        # Latest processed files in this run
+        add_section("Latest processed files")
         if latest_by_project:
             for project, newest in sorted(
                 latest_by_project.items(),
@@ -129,34 +286,66 @@ class BatchAlerts:
                 reverse=True,
             ):
                 processed_at = self._parse_timestamp(newest["processed_at"])
-                stamp = processed_at.astimezone().strftime("%d %b %Y · %H:%M")
-                marker = "  [LATEST]" if project == latest_project_name else ""
-                lines.append(f"{project}{marker}\n")
-                lines.append(f"  🕒 {stamp}\n")
+                stamp = processed_at.astimezone().strftime("%d %b %Y at %H:%M")
+                label = "  (latest project)" if project == latest_project_name else ""
+                group = [
+                    Paragraph(
+                        f"{escape(project)}"
+                        f"<font color='#667085'>{escape(label)}</font>",
+                        styles["ProjectHeading"],
+                    ),
+                    Paragraph(f"Processed: {escape(stamp)}", styles["ReportSmall"]),
+                ]
                 for entry in latest_run:
                     if entry["project"] == project:
-                        lines.append(f"  • {entry['pdf']}\n")
-                lines.append("\n")
+                        group.append(Paragraph(
+                            f"&bull;&nbsp; {escape(entry['pdf'])}",
+                            styles["ReportBullet"],
+                        ))
+                story.extend(group)
         else:
-            lines.append("No files processed in this batch run.\n\n")
+            story.append(Paragraph(
+                "No files processed in this batch run.",
+                styles["ReportBody"],
+            ))
 
+        # Rolling activity summary
         rejected = [r for r in recent_entries if r.get("status") == "REJECTED"]
         warnings = [r for r in recent_entries if r.get("status") == "WARNING"]
         accepted = [r for r in recent_entries if r.get("status") == "PASS"]
 
-        lines.extend([
-            f"SUMMARY — LAST {retention_days} DAYS\n",
-            "-" * 60 + "\n",
-            f"🟢 Accepted : {len(accepted)}\n",
-            f"🟡 Warnings : {len(warnings)}\n",
-            f"🔴 Rejected : {len(rejected)}\n\n",
-        ])
+        add_section(f"Summary — last {retention_days} days")
+        summary_data = [[
+            Paragraph("<b>Result</b>", styles["ReportBody"]),
+            Paragraph("<b>Files</b>", styles["ReportBody"]),
+        ]]
+        for label, results in (
+            ("Accepted", accepted),
+            ("Warnings", warnings),
+            ("Rejected", rejected),
+        ):
+            summary_data.append([
+                Paragraph(escape(label), styles["ReportBody"]),
+                Paragraph(str(len(results)), styles["ReportBody"]),
+            ])
+        summary_table = Table(summary_data, colWidths=[145 * mm, 25 * mm])
+        summary_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAECF0")),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#D0D5DD")),
+            ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2.5 * mm),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2.5 * mm),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.5 * mm),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5 * mm),
+        ]))
+        story.append(summary_table)
 
-        def append_grouped_section(title, emoji, results, detail_key=None):
+        def append_grouped_section(title, results, detail_key=None):
             if not results:
                 return
-            lines.append(f"{emoji} {title}\n")
-            lines.append("-" * 60 + "\n")
+
+            add_section(title)
             grouped = {}
             for result in results:
                 grouped.setdefault(result["project"], []).append(result)
@@ -175,9 +364,13 @@ class BatchAlerts:
                     reverse=True,
                 )
                 newest = self._parse_timestamp(project_results[0]["processed_at"])
-                stamp = newest.astimezone().strftime("%d %b %Y · %H:%M")
-                lines.append(f"{project}\n")
-                lines.append(f"  🕒 {stamp}\n")
+                stamp = newest.astimezone().strftime("%d %b %Y at %H:%M")
+                group = [Paragraph(
+                    f"{escape(project)}"
+                    f"<font color='#667085'> — {escape(stamp)}</font>",
+                    styles["ProjectHeading"],
+                )]
+
                 if detail_key == "warnings":
                     overlap_files = []
                     other_warnings = []
@@ -195,68 +388,82 @@ class BatchAlerts:
                                 other_warnings.append((result["pdf"], warning))
 
                     for filename, group_count in overlap_files:
-                        lines.append(f"  • {filename} — {group_count} groups\n")
+                        group.append(Paragraph(
+                            f"&bull;&nbsp; {escape(filename)} — "
+                            f"{group_count} overlap groups",
+                            styles["ReportBullet"],
+                        ))
 
                     if overlap_files:
                         file_word = "file" if len(overlap_files) == 1 else "files"
-                        lines.append(
-                            f"  Potential geometry overlap detected in "
-                            f"{len(overlap_files)} {file_word}.\n"
-                        )
+                        group.append(Paragraph(
+                            f"Potential geometry overlap detected in "
+                            f"{len(overlap_files)} {file_word}.",
+                            styles["ReportSmall"],
+                        ))
 
                     for filename, warning in other_warnings:
-                        lines.append(f"  • {filename}\n")
-                        lines.append(f"    • {warning}\n")
-
+                        group.append(Paragraph(
+                            f"&bull;&nbsp; {escape(filename)}",
+                            styles["ReportBullet"],
+                        ))
+                        group.append(Paragraph(
+                            f"&nbsp;&nbsp;&nbsp; {escape(warning)}",
+                            styles["ReportSmall"],
+                        ))
                 else:
                     for result in project_results:
-                        lines.append(f"  • {result['pdf']}\n")
+                        group.append(Paragraph(
+                            f"&bull;&nbsp; {escape(result['pdf'])}",
+                            styles["ReportBullet"],
+                        ))
                         if detail_key == "rejected":
                             for alert in result.get("alerts", []):
-                                lines.append(f"    {alert}\n")
+                                group.append(Paragraph(
+                                    f"&nbsp;&nbsp;&nbsp; {escape(str(alert))}",
+                                    styles["ReportSmall"],
+                                ))
                             for warning in result.get("warnings", []):
-                                lines.append(f"    • {warning}\n")
-                lines.append("\n")
+                                group.append(Paragraph(
+                                    f"&nbsp;&nbsp;&nbsp; Warning: "
+                                    f"{escape(str(warning))}",
+                                    styles["ReportSmall"],
+                                ))
+                story.extend(group)
 
-        append_grouped_section("ACCEPTED", "✅", accepted)
-        append_grouped_section("REJECTED", "❌", rejected, "rejected")
-        append_grouped_section("WARNINGS", "⚠️", warnings, "warnings")
+        append_grouped_section("Accepted", accepted)
+        append_grouped_section("Rejected", rejected, "rejected")
+        append_grouped_section("Warnings", warnings, "warnings")
 
-        lines.extend([
-            "EMAIL NOTIFICATION SUMMARY\n",
-            "-" * 60 + "\n",
-        ])
+        def draw_footer(canvas, document):
+            canvas.saveState()
+            canvas.setStrokeColor(colors.HexColor("#D0D5DD"))
+            canvas.setLineWidth(0.4)
+            canvas.line(20 * mm, 14 * mm, 190 * mm, 14 * mm)
+            canvas.setFont("Helvetica", 7)
+            canvas.setFillColor(colors.HexColor("#667085"))
+            canvas.drawString(20 * mm, 9 * mm, "LaserPrep — Administrative report")
+            canvas.drawRightString(
+                190 * mm, 9 * mm, f"Page {document.page}"
+            )
+            canvas.restoreState()
 
-        notification_summary = notification_summary or {
-            "status": "unavailable",
-            "sent": [],
-            "pending": [],
-        }
-        notification_status = notification_summary.get("status", "unavailable")
+        def write_pdf(path):
+            document = SimpleDocTemplate(
+                str(path),
+                pagesize=A4,
+                rightMargin=20 * mm,
+                leftMargin=20 * mm,
+                topMargin=17 * mm,
+                bottomMargin=21 * mm,
+                title="LaserPrep Batch Report",
+                author="LaserPrep",
+            )
+            document.build(
+                story,
+                onFirstPage=draw_footer,
+                onLaterPages=draw_footer,
+            )
 
-        if notification_status == "disabled":
-            lines.append("Email notifications were disabled for this run.\n\n")
-        elif notification_status == "unavailable":
-            lines.append("Notification tracking was unavailable for this run.\n\n")
-        else:
-            sent = notification_summary.get("sent", [])
-            pending = notification_summary.get("pending", [])
-            lines.append(f"Emails sent successfully : {len(sent)}\n")
-            lines.append(f"Notifications pending    : {len(pending)}\n")
-
-            if pending:
-                lines.append("\nPENDING NOTIFICATIONS\n")
-                for item in pending:
-                    project = item.get("project", "Unknown project")
-                    detail = item.get("detail", "")
-                    lines.append(f"  • {project}")
-                    if detail:
-                        lines.append(f" — {detail}")
-                    lines.append("\n")
-            lines.append("\n")
-
-        report = "".join(lines)
-        (folder / "CURRENT_BATCH_REPORT.txt").write_text(report, encoding="utf-8")
-
-        timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
-        (history_folder / f"{timestamp}.txt").write_text(report, encoding="utf-8")
+        write_pdf(report_path)
+        history_path.write_bytes(report_path.read_bytes())

@@ -66,7 +66,7 @@ LaserPrep is developed and tested on the following system.
 | pypdfium2 | 5.11.0 |
 | lxml | 6.1.1 |
 | Shapely | 2.1.2 |
-| PyInstaller | 6.22.2 |
+| PyInstaller | 6.22.2 |\n| ReportLab | 4.x |
 
 These versions describe the current development and testing environment. Other versions may work, but have not necessarily been tested.
 
@@ -203,20 +203,20 @@ The comparison is based on PDF contents, not just filenames. Replacing a file wi
 
 ### Batch reports
 
-Each batch run produces a current report:
+Each batch run produces a current PDF report, which can be opened in a standard PDF viewer:
 
 ```text
 ADMIN/
-└── CURRENT_BATCH_REPORT.txt
+└── CURRENT_BATCH_REPORT.pdf
 ```
 
-A timestamped historical report is also created:
+A timestamped historical PDF report is also created:
 
 ```text
 ADMIN/
 └── BATCH_REPORTS/
-    ├── 2026-08-28_14-32-05.txt
-    └── 2026-08-28_17-06-41.txt
+    ├── 2026-08-28_14-32-05.pdf
+    └── 2026-08-28_17-06-41.pdf
 ```
 
 LaserPrep also maintains a rolling activity log:

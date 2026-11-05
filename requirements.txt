@@ -3,3 +3,4 @@ pymupdf==1.28.0
 pypdfium2==5.11.0
 shapely==2.1.2
 pyinstaller==6.22.2
+reportlab>=4.0,<5
