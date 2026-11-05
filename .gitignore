@@ -35,3 +35,6 @@ TEST_FILES/
 
 debug/*
 !debug/.gitkeep
+
+# Local credentials and environment files
+*.env
