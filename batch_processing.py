@@ -6,9 +6,15 @@ Batch discovery, change scanning, and batch orchestration for LaserPrep.
 
 from pathlib import Path
 from typing import Callable
+import shutil
 
 from batch_alerts import BatchAlerts
-from config import ADMIN_ROOT, REPORT_RETENTION_DAYS
+from config import (
+    ADMIN_ROOT,
+    REPORT_RETENTION_DAYS,
+    STUDENT_DOCUMENTS_FOLDER,
+    STUDENT_GUIDE,
+)
 from nextcloud_lookup import get_student_emails
 from notification_manager import NotificationManager
 from processing_state import (
@@ -16,6 +22,40 @@ from processing_state import (
     load_recent_rejections,
     pdf_hash,
 )
+
+
+def prepare_student_documents(
+    batch_root: Path,
+    print_info: Callable[[str], None],
+    print_warning: Callable[[str], None],
+) -> None:
+    """Create student Documents folders and distribute the user guide."""
+    if not STUDENT_GUIDE.is_file():
+        print_warning(f"Student guide not found: {STUDENT_GUIDE}")
+
+    for student_folder in sorted(batch_root.iterdir()):
+        if not student_folder.is_dir():
+            continue
+
+        documents_folder = student_folder / STUDENT_DOCUMENTS_FOLDER
+
+        try:
+            documents_folder.mkdir(exist_ok=True)
+
+            if not STUDENT_GUIDE.is_file():
+                continue
+
+            destination = documents_folder / STUDENT_GUIDE.name
+
+            if not destination.exists():
+                shutil.copy2(STUDENT_GUIDE, destination)
+                print_info(f"Distributed user guide: {student_folder.name}")
+
+        except OSError as exc:
+            print_warning(
+                f"Could not prepare Documents for "
+                f"{student_folder.name}: {exc}"
+            )
 
 
 def scan_batch_changes(batch_root: Path) -> list[dict]:
@@ -31,7 +71,12 @@ def scan_batch_changes(batch_root: Path) -> list[dict]:
         if any(student_folder.glob("*.pdf")):
             projects.append((student_folder, student_folder.name))
         for project_folder in sorted(student_folder.iterdir()):
-            if project_folder.is_dir() and any(project_folder.glob("*.pdf")):
+            if (
+                project_folder.is_dir()
+                and project_folder.name.casefold()
+                != STUDENT_DOCUMENTS_FOLDER.casefold()
+                and any(project_folder.glob("*.pdf"))
+            ):
                 projects.append(
                     (project_folder, f"{student_folder.name} / {project_folder.name}")
                 )
@@ -104,6 +149,12 @@ def process_batch(
         print_error(f"Batch root does not exist: {batch_root}")
         return
 
+    prepare_student_documents(
+        batch_root,
+        print_info,
+        print_warning,
+    )
+
     projects = []
     for student_folder in sorted(batch_root.iterdir()):
         if not student_folder.is_dir():
@@ -111,7 +162,12 @@ def process_batch(
         if any(student_folder.glob("*.pdf")):
             projects.append((student_folder, student_folder.name))
         for project_folder in sorted(student_folder.iterdir()):
-            if project_folder.is_dir() and any(project_folder.glob("*.pdf")):
+            if (
+                project_folder.is_dir()
+                and project_folder.name.casefold()
+                != STUDENT_DOCUMENTS_FOLDER.casefold()
+                and any(project_folder.glob("*.pdf"))
+            ):
                 projects.append(
                     (project_folder, f"{student_folder.name} / {project_folder.name}")
                 )

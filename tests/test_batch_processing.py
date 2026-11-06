@@ -181,6 +181,30 @@ def test_nested_project_is_detected(tmp_path, monkeypatch):
         }
     ]
 
+def test_documents_folder_is_ignored_during_batch_scanning(
+    tmp_path, monkeypatch
+):
+    setup_scan_mocks(monkeypatch)
+
+    batch_root = tmp_path / "STUDENTS"
+    student = batch_root / "COOK"
+
+    create_pdf(
+        student / "Documents",
+        "Guide-Decoupe-Laser.pdf",
+        "guide data",
+    )
+    create_pdf(
+        student / "PROJECT_A",
+        "drawing.pdf",
+        "drawing data",
+    )
+
+    changes = batch_processing.scan_batch_changes(batch_root)
+
+    assert [change["project"] for change in changes] == [
+        "COOK / PROJECT_A"
+    ]
 
 def test_unchanged_project_is_not_reported(tmp_path, monkeypatch):
     setup_scan_mocks(
@@ -273,6 +297,77 @@ def test_multiple_projects_are_sorted(tmp_path, monkeypatch):
         "ZEBRA",
     ]
 
+# -------------------------------------------------------------------
+# Student documents
+# -------------------------------------------------------------------
+
+def test_prepare_student_documents_creates_folder_and_copies_guide(
+    tmp_path, monkeypatch
+):
+    batch_root = tmp_path / "STUDENTS"
+    student = batch_root / "COOK"
+    student.mkdir(parents=True)
+
+    master_guide = tmp_path / "RESOURCES" / "Guide-Decoupe-Laser.pdf"
+    master_guide.parent.mkdir()
+    master_guide.write_text("guide content", encoding="utf-8")
+
+    monkeypatch.setattr(
+        batch_processing,
+        "STUDENT_GUIDE",
+        master_guide,
+    )
+
+    messages = []
+    warnings = []
+
+    batch_processing.prepare_student_documents(
+        batch_root,
+        messages.append,
+        warnings.append,
+    )
+
+    student_guide = (
+        student
+        / batch_processing.STUDENT_DOCUMENTS_FOLDER
+        / master_guide.name
+    )
+
+    assert student_guide.is_file()
+    assert student_guide.read_text(encoding="utf-8") == "guide content"
+    assert warnings == []
+
+
+def test_prepare_student_documents_does_not_overwrite_existing_guide(
+    tmp_path, monkeypatch
+):
+    batch_root = tmp_path / "STUDENTS"
+    student = batch_root / "COOK"
+    documents = student / "Documents"
+    documents.mkdir(parents=True)
+
+    master_guide = tmp_path / "RESOURCES" / "Guide-Decoupe-Laser.pdf"
+    master_guide.parent.mkdir()
+    master_guide.write_text("updated master guide", encoding="utf-8")
+
+    student_guide = documents / master_guide.name
+    student_guide.write_text("existing student guide", encoding="utf-8")
+
+    monkeypatch.setattr(
+        batch_processing,
+        "STUDENT_GUIDE",
+        master_guide,
+    )
+
+    batch_processing.prepare_student_documents(
+        batch_root,
+        lambda message: None,
+        lambda message: None,
+    )
+
+    assert student_guide.read_text(encoding="utf-8") == (
+        "existing student guide"
+    )
 
 # -------------------------------------------------------------------
 # Batch orchestration

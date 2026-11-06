@@ -12,6 +12,10 @@ REPORT_RETENTION_DAYS = 7
 BATCH_ROOT = HOME / "Nextcloud" / "LaserPrep" / "STUDENTS"
 ADMIN_ROOT = HOME / "Nextcloud" / "LaserPrep" / "ADMIN"
 
+RESOURCES_ROOT = BATCH_ROOT.parent / "RESOURCES"
+STUDENT_DOCUMENTS_FOLDER = "Documents"
+STUDENT_GUIDE = RESOURCES_ROOT / "Guide-Decoupe-Laser.pdf"
+
 # -------------------------------------------------------------
 # Debug
 # -------------------------------------------------------------
