@@ -149,7 +149,7 @@ def process_batch(
     print_warning: Callable[[str], None],
     send_notifications: bool = True,
 ) -> None:
-    """Process every project found under the selected batch root."""
+    """Process changed projects and retry pending notifications for unchanged ones."""
     if not batch_root.exists():
         print_error(f"Batch root does not exist: {batch_root}")
         return
@@ -181,7 +181,17 @@ def process_batch(
         print("No projects found.")
         return
 
-    print_info(f"Found {len(projects)} projects.")
+    # Use the same change scanner as the GUI so unchanged projects are not
+    # sent through process_project() on every batch run.
+    changes_by_project = {
+        change["project"]: change
+        for change in scan_batch_changes(batch_root)
+    }
+    print_info(
+        f"Found {len(projects)} projects; "
+        f"{len(changes_by_project)} require processing."
+    )
+
     notifications = None
     notification_status = "disabled"
 
@@ -213,26 +223,34 @@ def process_batch(
         print_info("Email notifications are disabled for this batch.")
 
     alerts = BatchAlerts()
-    skipped_projects = 0
+    skipped_projects = len(projects) - len(changes_by_project)
     processed_projects = 0
+    processing_index = 0
 
-    for i, (folder, batch_project_name) in enumerate(projects, start=1):
-        result = process_project(
-            folder,
-            alerts,
-            use_state=True,
-            batch_project_name=batch_project_name,
-            progress_label=f"Project {i} / {len(projects)}",
-        )
-        if result == "skipped":
-            skipped_projects += 1
-        else:
-            processed_projects += 1
-
+    for folder, batch_project_name in projects:
         student_folder_name = (
             folder.name if folder.parent == batch_root else folder.parent.name
         )
 
+        result = "skipped"
+        if batch_project_name in changes_by_project:
+            processing_index += 1
+            result = process_project(
+                folder,
+                alerts,
+                use_state=True,
+                batch_project_name=batch_project_name,
+                progress_label=(
+                    f"Project {processing_index} / {len(changes_by_project)}"
+                ),
+            )
+            if result == "skipped":
+                skipped_projects += 1
+            else:
+                processed_projects += 1
+
+        # Unchanged projects are not reprocessed, but pending notifications
+        # are still retried for them.
         if notifications is not None:
             try:
                 if result == "completed":
