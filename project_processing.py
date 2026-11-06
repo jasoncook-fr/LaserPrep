@@ -43,7 +43,7 @@ from svg_writer import (
 )
 from text_import import import_text
 from topology import build_paths
-
+from student_report_pdf import save_student_report
 
 def cleanup_warning_outputs(
     folder: Path,
@@ -122,6 +122,21 @@ def cleanup_warning_outputs(
         except OSError as exc:
             print_warning(f"Could not remove old warning file {path}: {exc}")
 
+def save_student_reports(report, reports_folder, project_name):
+    """Generate French and English student-facing PDF reports."""
+    save_student_report(
+        report,
+        reports_folder / f"{project_name}.base_report_FR.pdf",
+        project_name,
+        language="fr",
+    )
+    save_student_report(
+        report,
+        reports_folder / f"{project_name}.base_report_EN.pdf",
+        project_name,
+        language="en",
+    )
+
 def process_project(
     folder: Path,
     alerts: BatchAlerts | None = None,
@@ -175,8 +190,15 @@ def process_project(
         )
 
         cached_outputs_complete = (
-            (reports_folder / f"{folder.name}.base_report.txt").is_file()
-            and (reports_folder / f"{folder.name}.extensive_report.txt").is_file()
+            (
+                reports_folder / f"{folder.name}.base_report_FR.pdf"
+            ).is_file()
+            and (
+                reports_folder / f"{folder.name}.base_report_EN.pdf"
+            ).is_file()
+            and (
+                reports_folder / f"{folder.name}.extensive_report.txt"
+            ).is_file()
             and (
                 not has_exportable_drawing
                 or (folder / f"{folder.name}.svg").is_file()
@@ -217,25 +239,31 @@ def process_project(
         ):
             return "skipped"
 
-        # Keep cached results for PDFs whose contents have not changed.
-        # New/changed PDFs will overwrite their previous records when processed.
-        processing_records = {
-            name: record
-            for name, record in previous_records.items()
-            if name in current_hashes
-        }
-        preserve_cached_stems = {
-            Path(name).stem
-            for name, record in previous_records.items()
-            if name in current_hashes
-            and record.get("hash") == current_hashes[name]
-            and record.get("status") == "REJECTED"
-            and isinstance(record.get("entry"), dict)
-        }
+        # A project that needs reprocessing is rebuilt from its source PDFs.
+        # Do not reuse per-PDF cache entries: the report dossier is cleared
+        # below, so every diagnostic and report must be regenerated as well.
+        previous_records = {}
+        processing_records = {}
 
-    # Clear stale outputs only for files that will be reprocessed.
+    # Rebuild the complete report dossier on every actual processing run.
+    # Keep the .laserprep debug directory and project-root outputs separate.
+    if reports_folder.exists():
+        try:
+            shutil.rmtree(reports_folder)
+            print_info(f"Removed previous report dossier: {reports_folder}")
+        except OSError as exc:
+            print_warning(
+                f"Could not completely remove report dossier "
+                f"{reports_folder}: {exc}"
+            )
+            raise
+
+    reports_folder.mkdir(parents=True, exist_ok=True)
+
+    # Also remove stale warning previews left in the project root by older
+    # versions. The reports folder itself has already been recreated empty.
     cleanup_warning_outputs(
-        folder, preserve_cached_stems,
+        folder, set(),
         print_info=print_info, print_warning=print_warning,
     )
 
@@ -782,8 +810,10 @@ def process_project(
     # Do not create an empty SVG when no PDF produced usable geometry.
     # Reports and processing state are still saved for rejected projects.
     if not project.drawings:
-        report.save(
-            reports_folder / f"{project.name}.base_report.txt",
+
+        save_student_reports(
+            report,
+            reports_folder,
             project.name,
         )
 
@@ -811,8 +841,9 @@ def process_project(
     diag.export_file(output_file)
     debug.save_svg(diag.debug_folder / output_file.name, "05_final.svg")
 
-    report.save(
-        reports_folder / f"{project.name}.base_report.txt",
+    save_student_reports(
+        report,
+        reports_folder,
         project.name,
     )
 

@@ -1,5 +1,6 @@
 
 import project_processing
+import pypdfium2 as pdfium
 
 
 def create_file(path):
@@ -7,6 +8,19 @@ def create_file(path):
     path.write_text("test", encoding="utf-8")
     return path
 
+def read_student_report(folder, language="FR"):
+    path = (
+        folder
+        / "reports"
+        / f"{folder.name}.base_report_{language}.pdf"
+    )
+
+    document = pdfium.PdfDocument(str(path))
+    pages = []
+    for page in document:
+        textpage = page.get_textpage()
+        pages.append(textpage.get_text_range())
+    return "\n".join(pages)
 
 def run_cleanup(folder, preserve=None):
     info_messages = []
@@ -144,10 +158,9 @@ def test_process_project_skips_complete_unchanged_cache(
     reports = folder / "reports"
     reports.mkdir()
 
-    (reports / "COOK.base_report.txt").write_text(
-        "Base report",
-        encoding="utf-8",
-    )
+    create_file(reports / "COOK.base_report_FR.pdf")
+    create_file(reports / "COOK.base_report_EN.pdf")
+
     (reports / "COOK.extensive_report.txt").write_text(
         "Extensive report",
         encoding="utf-8",
@@ -262,13 +275,11 @@ def test_process_project_rejects_unreadable_pdf(
         run_rejection_test(folder)
     )
 
-    report = (
-        folder / "reports" / "COOK.base_report.txt"
-    ).read_text(encoding="utf-8")
+    report = read_student_report(folder)
 
     assert result == "completed"
     assert any("Could not read drawing.pdf" in msg for msg in errors)
-    assert "Rejected : 1" in report
+    assert "NON ACCEPTÉ" in report
     assert not (folder / "COOK.svg").exists()
 
 
@@ -300,13 +311,11 @@ def test_process_project_rejects_multipage_pdf(
         run_rejection_test(folder)
     )
 
-    report = (
-        folder / "reports" / "COOK.base_report.txt"
-    ).read_text(encoding="utf-8")
+    report = read_student_report(folder)
 
     assert result == "completed"
     assert any("multiple pages (2)" in msg for msg in errors)
-    assert "Rejected : 1" in report
+    assert "NON ACCEPTÉ" in report
     assert not (folder / "COOK.svg").exists()
 
 
@@ -364,13 +373,11 @@ def test_process_project_rejects_excessive_pdf_complexity(
         run_rejection_test(folder)
     )
 
-    report = (
-        folder / "reports" / "COOK.base_report.txt"
-    ).read_text(encoding="utf-8")
+    report = read_student_report(folder)
 
     assert result == "completed"
     assert any("25,001 vector points" in msg for msg in errors)
-    assert "Rejected : 1" in report
+    assert "NON ACCEPTÉ" in report
     assert not (folder / "COOK.svg").exists()
 
 
@@ -429,11 +436,9 @@ def test_process_project_rejects_raster_only_pdf(
         run_rejection_test(folder)
     )
 
-    report = (
-        folder / "reports" / "COOK.base_report.txt"
-    ).read_text(encoding="utf-8")
+    report = read_student_report(folder)
 
     assert result == "completed"
     assert any("no usable vector artwork" in msg for msg in errors)
-    assert "Rejected : 1" in report
+    assert "NON ACCEPTÉ" in report
     assert not (folder / "COOK.svg").exists()

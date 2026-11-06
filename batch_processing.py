@@ -23,6 +23,11 @@ from processing_state import (
     pdf_hash,
 )
 
+IGNORED_PROJECT_FOLDERS = {
+    STUDENT_DOCUMENTS_FOLDER.casefold(),
+    "reports",
+}
+
 
 def prepare_student_documents(
     batch_root: Path,
@@ -74,7 +79,7 @@ def scan_batch_changes(batch_root: Path) -> list[dict]:
             if (
                 project_folder.is_dir()
                 and project_folder.name.casefold()
-                != STUDENT_DOCUMENTS_FOLDER.casefold()
+                not in IGNORED_PROJECT_FOLDERS
                 and any(project_folder.glob("*.pdf"))
             ):
                 projects.append(
@@ -165,7 +170,7 @@ def process_batch(
             if (
                 project_folder.is_dir()
                 and project_folder.name.casefold()
-                != STUDENT_DOCUMENTS_FOLDER.casefold()
+                not in IGNORED_PROJECT_FOLDERS
                 and any(project_folder.glob("*.pdf"))
             ):
                 projects.append(
