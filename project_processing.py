@@ -122,19 +122,21 @@ def cleanup_warning_outputs(
         except OSError as exc:
             print_warning(f"Could not remove old warning file {path}: {exc}")
 
-def save_student_reports(report, reports_folder, project_name):
+def save_student_reports(report, reports_folder, project_name, *, svg_created=False):
     """Generate French and English student-facing PDF reports."""
     save_student_report(
         report,
         reports_folder / f"{project_name}.base_report_FR.pdf",
         project_name,
         language="fr",
+        svg_created=svg_created,
     )
     save_student_report(
         report,
         reports_folder / f"{project_name}.base_report_EN.pdf",
         project_name,
         language="en",
+        svg_created=svg_created,
     )
 
 def process_project(
@@ -845,6 +847,7 @@ def process_project(
         report,
         reports_folder,
         project.name,
+        svg_created=output_file.is_file(),
     )
 
     dev_report.save(

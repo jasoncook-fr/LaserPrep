@@ -50,6 +50,11 @@ TEXT = {
         "maximum_size": "Maximum permitted size",
         "object_count": "Vector objects",
         "no_details": "No additional details.",
+        "svg_warning_title": "CHECK BEFORE BOOKING — ",
+        "svg_warning": (
+            "LaserPrep can make mistakes. Review the final SVG in Inkscape or Adobe Illustrator "
+            "before booking. All accepted PDFs are included, each on its own layer."
+        ),
         "footer": "Generated automatically by LaserPrep.",
     },
     "fr": {
@@ -75,6 +80,11 @@ TEXT = {
         "maximum_size": "Dimensions maximales autorisées",
         "object_count": "Objets vectoriels",
         "no_details": "Aucun détail supplémentaire.",
+        "svg_warning_title": "À VÉRIFIER AVANT RENDEZ-VOUS — ",
+        "svg_warning": (
+            "LaserPrep peut faire des erreurs. Vérifiez le SVG final dans Inkscape ou Adobe Illustrator "
+            "avant de réserver. Tous les PDF acceptés y figurent, chacun sur un calque distinct."
+        ),
         "footer": "Document généré automatiquement par LaserPrep.",
     },
 }
@@ -373,7 +383,7 @@ def _add_bullet_section(story, heading, items, styles, language):
         )
 
 
-def save_student_report(report, path, project, language="en"):
+def save_student_report(report, path, project, language="en", svg_created=False):
     """
     Render one language version of a Report object as a student PDF.
 
@@ -479,6 +489,32 @@ def save_student_report(report, path, project, language="en"):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 2.2 * mm),
     ]))
     story.append(summary_table)
+
+    if svg_created:
+        warning_style = ParagraphStyle(
+            "StudentSvgWarning",
+            parent=styles["body"],
+            fontSize=7.8,
+            leading=10,
+            spaceAfter=0,
+        )
+        warning_text = (
+            f'<font color="#8A5700"><b>{escape(labels["svg_warning_title"])}</b></font>'
+            f'{escape(labels["svg_warning"])}'
+        )
+        warning_box = Table(
+            [[Paragraph(warning_text, warning_style)]],
+            colWidths=[170 * mm],
+        )
+        warning_box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FBF3E5")),
+            ("LINEBEFORE", (0, 0), (0, -1), 2.2, colors.HexColor("#D49A35")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2.5 * mm),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2.5 * mm),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.5 * mm),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5 * mm),
+        ]))
+        story.extend([Spacer(1, 2 * mm), warning_box])
 
     story.append(Paragraph(labels["files"], styles["section"]))
 
