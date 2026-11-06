@@ -20,6 +20,7 @@ import re
 from drawing import Line, Bezier
 from svg_transform import AffineTransform
 from svg_path_parser import parse_svg_path
+from svg_clipping import should_discard_path
 from laser_palette import snap_colour
 
 SVG_NS = "{http://www.w3.org/2000/svg}"
@@ -137,6 +138,7 @@ def import_svg_geometry(svg_filename, page_width=None, page_height=None):
     result = []
 
     drawing_id = 0
+    clip_cache = {}
 
     def _artwork_paths(node, inside_non_artwork=False):
 
@@ -253,6 +255,12 @@ def import_svg_geometry(svg_filename, page_width=None, page_height=None):
         for path in paths:
 
             path = _transform_path(path, transform)
+
+            # Discard only geometry proven to lie wholly outside a supported
+            # active clip. Unsupported or ambiguous clipping is kept intact.
+            if should_discard_path(root, node, path, clip_cache):
+                continue
+
             path = _scale_mm(path)
 
             if not _path_intersects_page(
