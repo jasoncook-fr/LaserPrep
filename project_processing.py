@@ -36,7 +36,11 @@ from processing_state import load_processing_records, pdf_hash, save_processing_
 from project import Project
 from report import Report
 from report_dev import DeveloperReport
-from svg_writer import write_bad_colors_svg, write_svg
+from svg_writer import (
+    write_bad_colors_svg,
+    write_clipping_removed_svg,
+    write_svg,
+)
 from text_import import import_text
 from topology import build_paths
 
@@ -61,6 +65,11 @@ def cleanup_warning_outputs(
     reports_folder.mkdir(parents=True, exist_ok=True)
 
     files_to_remove = []
+
+    # Previous clipping-removal proofs belong in the project reports folder.
+    files_to_remove.extend(
+        reports_folder.glob("*_clipping_removed.svg")
+    )
 
     # Old bad-colour previews may have been written in the project root by
     # earlier versions of LaserPrep. Remove them from there.
@@ -90,6 +99,11 @@ def cleanup_warning_outputs(
         # processed again (or for removed/unrelated stale outputs).
         if path.name.endswith("_bad_colors.svg"):
             pdf_stem = path.name.removesuffix("_bad_colors.svg")
+            if pdf_stem in preserve_pdf_stems:
+                continue
+
+        if path.name.endswith("_clipping_removed.svg"):
+            pdf_stem = path.name.removesuffix("_clipping_removed.svg")
             if pdf_stem in preserve_pdf_stems:
                 continue
 
@@ -130,6 +144,7 @@ def process_project(
     current_hashes = None
     preserve_cached_stems: set[str] = set()
     missing_cached_warning_stems: set[str] = set()
+    missing_cached_clipping_stems: set[str] = set()
     reports_folder = folder / "reports"
 
     if use_state:
@@ -186,6 +201,14 @@ def process_project(
             if not (reports_folder / warning_name).is_file():
                 missing_cached_warning_stems.add(pdf.stem)
                 cached_outputs_complete = False
+
+            clipping_count = entry.get("clipping_removed_paths", 0)
+            clipping_proof = entry.get("clipping_proof")
+
+            if clipping_count and clipping_proof:
+                if not (reports_folder / clipping_proof).is_file():
+                    missing_cached_clipping_stems.add(pdf.stem)
+                    cached_outputs_complete = False
 
         if (
             current_hashes == previous_hashes
@@ -267,6 +290,7 @@ def process_project(
     for pdf in pdf_files:
 
         cached = previous_records.get(pdf.name) if use_state else None
+
         unchanged_cached = (
             use_state
             and cached is not None
@@ -274,6 +298,7 @@ def process_project(
             and cached.get("status") == "REJECTED"
             and isinstance(cached.get("entry"), dict)
             and pdf.stem not in missing_cached_warning_stems
+            and pdf.stem not in missing_cached_clipping_stems
         )
 
         if unchanged_cached:
@@ -416,7 +441,31 @@ def process_project(
 
         print_info(f"Reading {pdf.name}...")
 
-        drawing = read_pdf(pdf)
+        clipping_removed = []
+
+        drawing = read_pdf(
+            pdf,
+            clipping_removed=clipping_removed,
+        )
+
+        clipping_proof_name = None
+
+        if clipping_removed:
+            clipping_proof_name = (
+                f"{pdf.stem}_clipping_removed.svg"
+            )
+
+            write_clipping_removed_svg(
+                clipping_removed,
+                reports_folder / clipping_proof_name,
+                page_width=drawing.width,
+                page_height=drawing.height,
+            )
+
+        report.clipping(
+            len(clipping_removed),
+            clipping_proof_name,
+        )
 
         complexity = analyse_complexity(drawing)
 
