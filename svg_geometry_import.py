@@ -130,8 +130,12 @@ def _path_intersects_page(path, page_width, page_height):
 
     return False
 
-def import_svg_geometry(svg_filename, page_width=None, page_height=None):
-
+def import_svg_geometry(
+    svg_filename,
+    page_width=None,
+    page_height=None,
+    clipping_removed=None,
+):
     tree = ET.parse(svg_filename)
     root = tree.getroot()
 
@@ -257,8 +261,12 @@ def import_svg_geometry(svg_filename, page_width=None, page_height=None):
             path = _transform_path(path, transform)
 
             # Discard only geometry proven to lie wholly outside a supported
-            # active clip. Unsupported or ambiguous clipping is kept intact.
+            # active clip. Capture rejected geometry before discarding it.
             if should_discard_path(root, node, path, clip_cache):
+                if clipping_removed is not None:
+                    removed_path = _scale_mm(path)
+                    removed_path.stroke_color = stroke
+                    clipping_removed.append(removed_path)
                 continue
 
             path = _scale_mm(path)

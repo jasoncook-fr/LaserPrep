@@ -150,6 +150,19 @@ class Report:
                 f"Corrected {col} colours"
             )
 
+    def clipping(self, removed_count, proof_filename):
+        """Record geometry discarded by SVG clipping."""
+        self._ensure()
+
+        self.current["clipping_removed_paths"] = removed_count
+        self.current["clipping_proof"] = proof_filename if removed_count else None
+
+        if removed_count:
+            self.current["repairs"].append(
+                f"SVG clipping removed {removed_count} paths. "
+                f"Proof: {proof_filename} (in reports/)."
+            )
+
     def statistics(self,s):
         pass
 

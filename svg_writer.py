@@ -521,3 +521,89 @@ def write_bad_colors_svg(drawing, filename, unsupported_colors):
         xml_declaration=True,
         encoding="UTF-8",
     )
+
+def write_clipping_removed_svg(
+    paths,
+    filename: Path,
+    page_width: float,
+    page_height: float,
+):
+    """
+    Export geometry rejected by SVG clipping.
+
+    Paths are already transformed into page coordinates and scaled to mm.
+    The SVG uses the original PDF page dimensions, not the laser bed.
+    """
+
+    root = ET.Element(
+        "svg",
+        nsmap=NSMAP,
+        width=f"{page_width:.3f}mm",
+        height=f"{page_height:.3f}mm",
+        viewBox=f"0 0 {page_width:.6f} {page_height:.6f}",
+        version="1.1",
+    )
+
+    layer = _layer(root, "Clipping Removed Geometry")
+
+    for path in paths:
+        if path.is_empty:
+            continue
+
+        d = []
+        previous_end = None
+
+        for segment in path:
+
+            if (
+                previous_end is None
+                or not _same_point(segment.start, previous_end)
+            ):
+                d.append(
+                    f"M {segment.start.x:.6f},{segment.start.y:.6f}"
+                )
+
+            if isinstance(segment, Line):
+                d.append(
+                    f"L {segment.end.x:.6f},{segment.end.y:.6f}"
+                )
+
+            elif isinstance(segment, Bezier):
+                d.append(
+                    f"C "
+                    f"{segment.control1.x:.6f},{segment.control1.y:.6f} "
+                    f"{segment.control2.x:.6f},{segment.control2.y:.6f} "
+                    f"{segment.end.x:.6f},{segment.end.y:.6f}"
+                )
+
+            previous_end = segment.end
+
+        if getattr(path, "closed", False):
+            d.append("Z")
+
+        ET.SubElement(
+            layer,
+            "path",
+            {
+                "d": " ".join(d),
+                "stroke": (
+                    "#{:02X}{:02X}{:02X}".format(*path.stroke_color)
+                    if getattr(path, "stroke_color", None) is not None
+                    else "#FF0000"
+                ),
+                "stroke-width": "0.5",
+                "stroke-linecap": "round",
+                "stroke-linejoin": "round",
+                "fill": "none",
+            },
+        )
+
+    filename = Path(filename)
+    filename.parent.mkdir(parents=True, exist_ok=True)
+
+    ET.ElementTree(root).write(
+        str(filename),
+        pretty_print=True,
+        xml_declaration=True,
+        encoding="UTF-8",
+    )

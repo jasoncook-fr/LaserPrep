@@ -17,7 +17,7 @@ from diagnostics import diag
 PT_TO_MM = 25.4 / 72.0
 
 
-def read_pdf(filename: Path) -> Drawing:
+def read_pdf(filename: Path, clipping_removed=None) -> Drawing:
     doc = fitz.open(filename)
     page = doc[0]
 
@@ -38,6 +38,7 @@ def read_pdf(filename: Path) -> Drawing:
         svg_file,
         page_width=drawing.width,
         page_height=drawing.height,
+        clipping_removed=clipping_removed,
     )
 
     # Populate drawing.objects from imported paths
