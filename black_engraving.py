@@ -250,7 +250,9 @@ def process_black_engraving(drawing) -> dict[str, int]:
 
     _remove_white_paint(original_paths)
 
-    black_geometry = None
+    empty = 0
+    black_geometries = []
+
     for path in black_paths:
         geometry = _path_geometry(path)
 
@@ -258,11 +260,9 @@ def process_black_engraving(drawing) -> dict[str, int]:
             empty += 1
             continue
 
-        black_geometry = (
-            geometry
-            if black_geometry is None
-            else black_geometry.union(geometry)
-        )
+        black_geometries.append(geometry)
+
+    black_geometry = unary_union(black_geometries) if black_geometries else None
 
     # Apply white geometry as local knockouts.  A large white background
     # polygon may contain the entire black drawing; that is not a knockout
@@ -322,7 +322,6 @@ def process_black_engraving(drawing) -> dict[str, int]:
         remaining.extend(generated)
 
     drawing.paths = remaining
-
     return {
         "black_paths": len(black_paths),
         "white_paths": len(white_paths),

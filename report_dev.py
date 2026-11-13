@@ -40,6 +40,7 @@ class DeveloperReport:
     def complexity(self, complexity):
         self.section("Complexity")
         self.line("Vector objects", complexity.object_count)
+        self.line("Filled paths", getattr(complexity, "filled_paths", 0))
         self.line("Rating", complexity.rating)
         self.line("Abort", complexity.should_abort)
 

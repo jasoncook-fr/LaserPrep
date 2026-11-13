@@ -24,6 +24,8 @@ Version 1.2
 
 from pathlib import Path
 
+from config import DEBUG_EXPORT_TEXT
+
 DEBUG = False
 
 from svg_analysis import analyze_svg
@@ -175,15 +177,19 @@ def import_text(drawing, pdf_file):
 
     _dbg(f"Imported text paths : {len(text_paths)}")
 
-    debug_svg = (
-        diag.debug_folder
-        / f"{pdf_file.stem}.imported_text.svg"
-    )
+    # This diagnostic export can be expensive for PDFs with many glyph
+    # segments. Keep it available for targeted investigations, but do not
+    # generate it during ordinary unattended batch processing.
+    if DEBUG_EXPORT_TEXT and diag.enabled:
+        debug_svg = (
+            diag.debug_folder
+            / f"{pdf_file.stem}.imported_text.svg"
+        )
 
-    write_imported_paths(
-        text_paths,
-        debug_svg,
-    )
+        write_imported_paths(
+            text_paths,
+            debug_svg,
+        )
 
     # --------------------------------------------------------
     # Watermark detection

@@ -25,6 +25,7 @@ class Complexity:
     rating: str
     should_abort: bool
     point_count: int = 0
+    filled_paths: int = 0
 
 @dataclass
 class PDFContent:
@@ -84,12 +85,17 @@ def analyse_complexity(drawing) -> Complexity:
     """
 
     object_count = len(drawing.objects)
+    filled_paths = sum(
+        bool(getattr(path, "fill_enabled", False))
+        for path in drawing.paths
+    )
 
     if object_count >= COMPLEXITY_ABORT_OBJECTS:
         return Complexity(
             object_count=object_count,
             rating="ABORT",
             should_abort=True,
+            filled_paths=filled_paths,
         )
 
     if object_count >= COMPLEXITY_HIGH_OBJECTS:
@@ -97,6 +103,7 @@ def analyse_complexity(drawing) -> Complexity:
             object_count=object_count,
             rating="HIGH",
             should_abort=False,
+            filled_paths=filled_paths,
         )
 
     if object_count >= COMPLEXITY_WARNING_OBJECTS:
@@ -104,12 +111,14 @@ def analyse_complexity(drawing) -> Complexity:
             object_count=object_count,
             rating="WARNING",
             should_abort=False,
+            filled_paths=filled_paths,
         )
 
     return Complexity(
         object_count=object_count,
         rating="NORMAL",
         should_abort=False,
+        filled_paths=filled_paths,
     )
 
 def analyse_pdf_complexity(page) -> Complexity:

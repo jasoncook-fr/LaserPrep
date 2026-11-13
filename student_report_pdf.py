@@ -198,7 +198,7 @@ def _build_styles():
 
 
 def _format_int(value, language):
-    number = int(value or 0)
+    number = int(str(value or 0).replace(",", "").replace(" ", ""))
     return f"{number:,}".replace(",", " ") if language == "fr" else f"{number:,}"
 
 
@@ -344,6 +344,31 @@ def _translate_detail(message, language):
             f"Chevauchements géométriques potentiels : {_format_int(overlap.group(1), 'fr')} groupes détectés. "
             f"Voir {overlap.group(2)} dans les rapports du projet."
         )
+
+    complexity = re.match(
+        r"^(Elevated|High) geometry complexity: ([\d,]+) vector objects; "
+        r"([\d,]+) filled paths\. Processing may take longer than usual\."
+        r"( Filled areas may significantly increase laser engraving time\.)?"
+        r" Consider simplifying the artwork where practical\.$",
+        value,
+    )
+    if complexity:
+        level = "élevée" if complexity.group(1) == "High" else "accrue"
+        translated = (
+            f"Complexité géométrique {level} : "
+            f"{_format_int(complexity.group(2), 'fr')} objets vectoriels et "
+            f"{_format_int(complexity.group(3), 'fr')} tracés remplis. "
+            "Le traitement peut prendre plus de temps que d’habitude."
+        )
+        if complexity.group(4):
+            translated += (
+                " Les zones remplies peuvent augmenter considérablement "
+                "le temps de gravure laser."
+            )
+        translated += (
+            " Dans la mesure du possible, veuillez simplifier le dessin."
+        )
+        return translated
 
     overlap = re.match(
         r"^Excessive potential geometry overlap: (\d+) groups detected\. Rejection threshold: (\d+) groups\. See (.+) in the project reports\.$",

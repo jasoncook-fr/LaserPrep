@@ -67,6 +67,21 @@ class Report:
         if c.should_abort:
             self.current["status"]="REJECTED"
             self.current["alerts"].append("Complexity exceeds supported limit.")
+            return
+
+        if c.rating in ("WARNING", "HIGH"):
+            if self.current["status"] == "PASS":
+                self.current["status"] = "WARNING"
+            filled = getattr(c, "filled_paths", 0)
+            level = "High" if c.rating == "HIGH" else "Elevated"
+            warning = (
+                f"{level} geometry complexity: {c.object_count:,} vector objects; "
+                f"{filled:,} filled paths. Processing may take longer than usual."
+            )
+            if filled:
+                warning += " Filled areas may significantly increase laser engraving time."
+            warning += " Consider simplifying the artwork where practical."
+            self.current["warnings"].append(warning)
 
     def geometry(self,g):
         self._ensure()
