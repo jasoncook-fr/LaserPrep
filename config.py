@@ -60,8 +60,8 @@ COMPLEXITY_ABORT_OBJECTS = 250000
 # Estimated vector point complexity in the source PDF.
 # Used for early rejection before SVG export/import.
 COMPLEXITY_WARNING_POINTS = 250000
-COMPLEXITY_HIGH_POINTS = 1000000
-COMPLEXITY_ABORT_POINTS = 2000000
+COMPLEXITY_HIGH_POINTS = 400000
+COMPLEXITY_ABORT_POINTS = 500000
 
 # ============================================================
 # Suspiciously small / densely detailed PDF detection
@@ -99,9 +99,9 @@ COLLINEAR_MIN_OVERLAP_RATIO = 0.80
 # Collinear / redundant geometry warning thresholds
 # ------------------------------------------------------------
 # Number of non-exact overlap groups before a warning is issued.
-COLLINEAR_OVERLAP_WARNING_GROUPS = 300
+COLLINEAR_OVERLAP_WARNING_GROUPS = 150
 # Number of non-exact overlap groups at which the file is rejected.
-COLLINEAR_OVERLAP_REJECT_GROUPS = 700
+COLLINEAR_OVERLAP_REJECT_GROUPS = 500
 
 # Optional nearest-neighbour ordering of disconnected laser-cutting strokes.
 OPTIMIZE_CUT_ORDER = True

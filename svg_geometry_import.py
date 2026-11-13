@@ -143,6 +143,15 @@ def import_svg_geometry(
 
     drawing_id = 0
     clip_cache = {}
+    # These lookups are invariant for the whole SVG document. Building them
+    # inside should_discard_path for every artwork path makes large imports
+    # needlessly expensive (O(paths * SVG elements)).
+    parent_map = {child: parent for parent in root.iter() for child in parent}
+    clip_definitions = {
+        element.attrib.get("id"): element
+        for element in root.iter()
+        if _strip(element.tag) == "clipPath" and element.attrib.get("id")
+    }
 
     def _artwork_paths(node, inside_non_artwork=False):
 
@@ -262,7 +271,14 @@ def import_svg_geometry(
 
             # Discard only geometry proven to lie wholly outside a supported
             # active clip. Capture rejected geometry before discarding it.
-            if should_discard_path(root, node, path, clip_cache):
+            if should_discard_path(
+                root,
+                node,
+                path,
+                clip_cache,
+                parent_map=parent_map,
+                definitions=clip_definitions,
+            ):
                 if clipping_removed is not None:
                     removed_path = _scale_mm(path)
                     removed_path.stroke_color = stroke

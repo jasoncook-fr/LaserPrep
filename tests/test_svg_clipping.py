@@ -27,6 +27,19 @@ class SvgClippingTests(unittest.TestCase):
         path = VectorPath(objects=[Line(Point(20, 20), Point(30, 30), (0, 0, 0), 0.01)])
         self.assertTrue(should_discard_path(root, node, path))
 
+    def test_precomputed_clipping_context(self):
+        root, node = self._document("M0 0H10V10H0Z", "M20 20L30 30")
+        parent_map = {child: parent for parent in root.iter() for child in parent}
+        definitions = {
+            element.attrib.get("id"): element
+            for element in root.iter()
+            if element.tag.endswith("clipPath") and element.attrib.get("id")
+        }
+        path = VectorPath(objects=[Line(Point(20, 20), Point(30, 30), (0, 0, 0), 0.01)])
+        self.assertTrue(should_discard_path(
+            root, node, path, {}, parent_map=parent_map, definitions=definitions
+        ))
+
     def test_geometry_inside_clip_is_kept(self):
         root, node = self._document("M0 0H10V10H0Z", "M2 2L8 8")
         path = VectorPath(objects=[Line(Point(2, 2), Point(8, 8), (0, 0, 0), 0.01)])

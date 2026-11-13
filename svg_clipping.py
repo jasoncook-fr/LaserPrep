@@ -248,7 +248,7 @@ def _clip_ids(value):
     return CLIP_URL_RE.findall(value)
 
 
-def should_discard_path(root, node, transformed_path, clip_cache=None):
+def should_discard_path(root, node, transformed_path, clip_cache=None, parent_map=None, definitions=None):
     """Return True only when a path is provably wholly outside an active clip.
 
     Group transforms and unsupported/malformed clips cause a conservative keep.
@@ -258,7 +258,8 @@ def should_discard_path(root, node, transformed_path, clip_cache=None):
     if clip_cache is None:
         clip_cache = {}
 
-    parent_map = {child: parent for parent in root.iter() for child in parent}
+    if parent_map is None:
+        parent_map = {child: parent for parent in root.iter() for child in parent}
     ancestors = []
     current = node
     while current is not None:
@@ -277,11 +278,12 @@ def should_discard_path(root, node, transformed_path, clip_cache=None):
     if not ids:
         return False
 
-    definitions = {
-        element.attrib.get("id"): element
-        for element in root.iter()
-        if _tag(element) == "clipPath" and element.attrib.get("id")
-    }
+    if definitions is None:
+        definitions = {
+            element.attrib.get("id"): element
+            for element in root.iter()
+            if _tag(element) == "clipPath" and element.attrib.get("id")
+        }
 
     geometry_hull = _convex_hull(_segment_points(transformed_path))
     if not geometry_hull:
