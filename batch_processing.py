@@ -36,6 +36,76 @@ IGNORED_PROJECT_FOLDERS = {
 }
 
 
+def correct_missing_pdf_extensions(
+    batch_root: Path,
+    print_info: Callable[[str], None],
+    print_warning: Callable[[str], None],
+) -> int:
+    """Append .pdf to genuine PDFs missing the correct extension."""
+    corrected = 0
+
+    for student_folder in sorted(batch_root.iterdir()):
+        if not student_folder.is_dir() or student_folder.is_symlink():
+            continue
+
+        folders = [student_folder]
+
+        for child in sorted(student_folder.iterdir()):
+            if (
+                child.is_dir()
+                and not child.is_symlink()
+                and child.name.casefold() not in IGNORED_PROJECT_FOLDERS
+            ):
+                folders.append(child)
+
+        for folder in folders:
+            for candidate in sorted(folder.iterdir()):
+                if (
+                    not candidate.is_file()
+                    or candidate.is_symlink()
+                    or candidate.name.casefold().endswith(".pdf")
+                ):
+                    continue
+
+                try:
+                    with candidate.open("rb") as file:
+                        header = file.read(1024)
+                except OSError as exc:
+                    print_warning(
+                        f"Could not inspect file {candidate}: {exc}"
+                    )
+                    continue
+
+                if b"%PDF-" not in header:
+                    continue
+
+                destination = candidate.with_name(candidate.name + ".pdf")
+
+                if destination.exists():
+                    print_warning(
+                        f"PDF extension correction skipped; "
+                        f"destination already exists: {destination}"
+                    )
+                    continue
+
+                try:
+                    candidate.rename(destination)
+                except OSError as exc:
+                    print_warning(
+                        f"Could not rename PDF {candidate}: {exc}"
+                    )
+                    continue
+
+                corrected += 1
+                print_info(
+                    f"Corrected PDF filename: "
+                    f"{candidate.relative_to(batch_root)} "
+                    f"-> {destination.name}"
+                )
+
+    return corrected
+
+
 def prepare_student_documents(
     batch_root: Path,
     print_info: Callable[[str], None],
@@ -75,6 +145,17 @@ def scan_batch_changes(batch_root: Path) -> list[dict]:
     changes = []
     if not batch_root.is_dir():
         return changes
+
+    # Correct extensionless PDFs before scanning for new or changed files.
+    corrected_count = correct_missing_pdf_extensions(
+        batch_root,
+        print,
+        print,
+    )
+    if corrected_count:
+        print(
+            f"PDF filename correction: {corrected_count} files corrected."
+        )
 
     projects = []
     for student_folder in sorted(batch_root.iterdir()):
@@ -241,6 +322,23 @@ def process_batch(
     except Exception as exc:
         print_warning(
             f"Student folder cleanup failed: {exc}. "
+            "Continuing with batch processing."
+        )
+
+    # Correct PDF files submitted without the .pdf extension.
+    try:
+        corrected_count = correct_missing_pdf_extensions(
+            batch_root,
+            print_info,
+            print_warning,
+        )
+        if corrected_count:
+            print_info(
+                f"PDF filename correction: {corrected_count} files corrected."
+            )
+    except Exception as exc:
+        print_warning(
+            f"PDF filename correction failed: {exc}. "
             "Continuing with batch processing."
         )
 

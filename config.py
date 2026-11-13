@@ -18,8 +18,8 @@ STUDENT_GUIDE = RESOURCES_ROOT / "Guide-Decoupe-Laser.pdf"
 # ============================================================
 # Student Folder Cleanup
 # ============================================================
-STUDENT_FILE_RETENTION_DAYS = 30
-STUDENT_CLEANUP_DRY_RUN = True
+STUDENT_FILE_RETENTION_DAYS = 10
+STUDENT_CLEANUP_DRY_RUN = False
 
 # -------------------------------------------------------------
 # Debug
