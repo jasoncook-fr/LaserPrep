@@ -174,6 +174,107 @@ def get_student_emails() -> dict[str, str]:
     return student_emails
 
 
+def remove_share_expirations(dry_run=True):
+    """
+    Remove expiration dates from folder shares under STUDENT_ROOT.
+
+    Returns a summary dictionary.
+    """
+
+    config = load_config()
+
+    base_url = config["NEXTCLOUD_URL"].rstrip("/")
+    username = config["NEXTCLOUD_USERNAME"]
+    password = config["NEXTCLOUD_APP_PASSWORD"]
+
+    credentials = base64.b64encode(
+        f"{username}:{password}".encode("utf-8")
+    ).decode("ascii")
+
+    headers = {
+        "Authorization": f"Basic {credentials}",
+        "OCS-APIRequest": "true",
+        "Accept": "application/json",
+    }
+
+    context = ssl.create_default_context()
+
+    if CERTIFICATE_FILE.is_file():
+        context.load_verify_locations(cafile=str(CERTIFICATE_FILE))
+
+    def api_request(url, method="GET", data=None):
+        request = Request(
+            url,
+            data=data,
+            headers=headers,
+            method=method,
+        )
+
+        with urlopen(request, context=context, timeout=20) as response:
+            result = json.loads(response.read().decode("utf-8"))
+
+        ocs = result.get("ocs", {})
+
+        if ocs.get("meta", {}).get("status") != "ok":
+            raise RuntimeError(
+                f"Nextcloud API error: "
+                f"{ocs.get('meta', {}).get('message', 'Unknown error')}"
+            )
+
+        return ocs.get("data", [])
+
+    params = urlencode({
+        "path": STUDENT_ROOT,
+        "subfiles": "true",
+        "format": "json",
+    })
+
+    url = f"{base_url}{SHARES_ENDPOINT}?{params}"
+
+    shares = api_request(url)
+
+    targets = [
+        share for share in shares
+        if share.get("item_type") == "folder"
+        and share.get("expiration") not in (None, "")
+    ]
+
+    summary = {
+        "inspected": len(shares),
+        "expiring": len(targets),
+        "removed": 0,
+        "failed": [],
+    }
+
+    if dry_run:
+        return summary
+
+    for share in targets:
+        share_id = share["id"]
+        path = share.get("path", "Unknown path")
+
+        update_url = (
+            f"{base_url}{SHARES_ENDPOINT}/{share_id}?format=json"
+        )
+
+        data = urlencode({"expireDate": ""}).encode("utf-8")
+
+        try:
+            api_request(
+                update_url,
+                method="PUT",
+                data=data,
+            )
+            summary["removed"] += 1
+
+        except Exception as exc:
+            summary["failed"].append({
+                "path": path,
+                "error": str(exc),
+            })
+
+    return summary
+
 if __name__ == "__main__":
     try:
         emails = get_student_emails()

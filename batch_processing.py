@@ -15,7 +15,10 @@ from config import (
     STUDENT_DOCUMENTS_FOLDER,
     STUDENT_GUIDE,
 )
-from nextcloud_lookup import get_student_emails
+from nextcloud_lookup import (
+    get_student_emails,
+    remove_share_expirations,
+)
 from notification_manager import NotificationManager
 from processing_state import (
     load_processing_state,
@@ -153,6 +156,39 @@ def process_batch(
     if not batch_root.exists():
         print_error(f"Batch root does not exist: {batch_root}")
         return
+
+    # Automatically remove expiration dates from student folder shares.
+    try:
+        share_summary = remove_share_expirations(dry_run=False)
+
+        print_info(
+            "Nextcloud share maintenance: "
+            f"{share_summary['inspected']} shares inspected, "
+            f"{share_summary['removed']} expiration dates removed."
+        )
+
+        if share_summary["failed"]:
+            print_warning(
+                f"Could not remove expiration dates from "
+                f"{len(share_summary['failed'])} shares."
+            )
+
+            for failure in share_summary["failed"]:
+                print_warning(
+                    f"Share update failed: {failure['path']}: "
+                    f"{failure['error']}"
+                )
+
+        elif share_summary["expiring"] == 0:
+            print_info(
+                "All folder shares are already without expiration dates."
+            )
+
+    except Exception as exc:
+        print_warning(
+            f"Nextcloud share maintenance failed: {exc}. "
+            "Continuing with batch processing."
+        )
 
     prepare_student_documents(
         batch_root,
