@@ -14,6 +14,8 @@ from config import (
     REPORT_RETENTION_DAYS,
     STUDENT_DOCUMENTS_FOLDER,
     STUDENT_GUIDE,
+    STUDENT_FILE_RETENTION_DAYS,
+    STUDENT_CLEANUP_DRY_RUN,
 )
 from nextcloud_lookup import (
     get_student_emails,
@@ -25,6 +27,8 @@ from processing_state import (
     load_recent_rejections,
     pdf_hash,
 )
+
+from student_cleanup import cleanup_student_folders
 
 IGNORED_PROJECT_FOLDERS = {
     STUDENT_DOCUMENTS_FOLDER.casefold(),
@@ -187,6 +191,56 @@ def process_batch(
     except Exception as exc:
         print_warning(
             f"Nextcloud share maintenance failed: {exc}. "
+            "Continuing with batch processing."
+        )
+
+    # Clean expired contents from student folders.
+    # This runs even when there are no projects to process.
+    try:
+        cleanup_summary = cleanup_student_folders(
+            batch_root,
+            retention_days=STUDENT_FILE_RETENTION_DAYS,
+            dry_run=STUDENT_CLEANUP_DRY_RUN,
+        )
+
+        if STUDENT_CLEANUP_DRY_RUN:
+            file_count = len(cleanup_summary["expired_files"])
+            directory_count = len(
+                cleanup_summary["directories_to_remove"]
+            )
+            action = "would be deleted"
+            mode = "DRY RUN"
+        else:
+            file_count = len(cleanup_summary["deleted_files"])
+            directory_count = len(
+                cleanup_summary["removed_directories"]
+            )
+            action = "deleted"
+            mode = "LIVE"
+
+        print_info(
+            f"Student folder cleanup ({mode}): "
+            f"{cleanup_summary['students_inspected']} students inspected, "
+            f"{cleanup_summary['files_inspected']} files inspected."
+        )
+        print_info(
+            f"Student folder cleanup: {file_count} files and "
+            f"{directory_count} directories {action}."
+        )
+
+        if cleanup_summary["errors"]:
+            print_warning(
+                f"Student folder cleanup encountered "
+                f"{len(cleanup_summary['errors'])} errors."
+            )
+            for error in cleanup_summary["errors"]:
+                print_warning(
+                    f"Cleanup error: {error['path']}: {error['error']}"
+                )
+
+    except Exception as exc:
+        print_warning(
+            f"Student folder cleanup failed: {exc}. "
             "Continuing with batch processing."
         )
 

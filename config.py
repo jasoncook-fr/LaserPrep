@@ -15,6 +15,11 @@ ADMIN_ROOT = HOME / "Nextcloud" / "LaserPrep" / "ADMIN"
 RESOURCES_ROOT = BATCH_ROOT.parent / "RESOURCES"
 STUDENT_DOCUMENTS_FOLDER = "Documents"
 STUDENT_GUIDE = RESOURCES_ROOT / "Guide-Decoupe-Laser.pdf"
+# ============================================================
+# Student Folder Cleanup
+# ============================================================
+STUDENT_FILE_RETENTION_DAYS = 30
+STUDENT_CLEANUP_DRY_RUN = True
 
 # -------------------------------------------------------------
 # Debug
