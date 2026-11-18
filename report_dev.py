@@ -96,6 +96,21 @@ class DeveloperReport:
         self.line("Near-duplicates removed", removed_near_duplicates)
         self.line("Colours corrected", corrected)
 
+    def cut_time_geometry(self, metrics):
+        self.section("Laser Time Geometry (measurements only)")
+        self.line("Blue cut straight", f"{metrics.cut_straight_length_mm:.3f} mm")
+        self.line("Blue cut curves", f"{metrics.cut_curve_length_mm:.3f} mm")
+        self.line("Green engrave straight", f"{metrics.green_engrave_straight_length_mm:.3f} mm")
+        self.line("Green engrave curves", f"{metrics.green_engrave_curve_length_mm:.3f} mm")
+        self.line("Red engrave straight", f"{metrics.red_engrave_straight_length_mm:.3f} mm")
+        self.line("Red engrave curves", f"{metrics.red_engrave_curve_length_mm:.3f} mm")
+        self.line("Black fill area", f"{metrics.black_fill_area_mm2:.3f} mm²")
+        self.line("Blue paths / segments", f"{metrics.blue_paths} / {metrics.blue_segments}")
+        self.line("Green paths / segments", f"{metrics.green_paths} / {metrics.green_segments}")
+        self.line("Red paths / segments", f"{metrics.red_paths} / {metrics.red_segments}")
+        self.line("Black fill paths / segments", f"{metrics.black_fill_paths} / {metrics.black_fill_segments}")
+        self.line("Unmeasurable black fills", metrics.black_fill_unmeasurable_paths)
+
     def statistics(self, stats):
         self.section("Geometry Statistics")
         self.line("Total lines", stats.total_lines)
