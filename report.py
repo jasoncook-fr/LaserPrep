@@ -35,6 +35,7 @@ class Report:
             "repairs":[],
             "drawing_size": None,
             "maximum_permitted_size": None,
+            "cut_time_geometry": None,
         }
 
     def validation(self, drawing, rotated, overflow, large_ok, small_ok):
@@ -178,6 +179,11 @@ class Report:
                 f"Proof: {proof_filename} (in reports/)."
             )
 
+    def cut_time_geometry(self, geometry):
+        """Store operation-specific geometry measurements; no duration prediction yet."""
+        self._ensure()
+        self.current["cut_time_geometry"] = geometry.to_dict()
+
     def statistics(self,s):
         pass
 
@@ -233,6 +239,27 @@ class Report:
         for f in self.files:
             icon = {"PASS":"✅","WARNING":"⚠️","REJECTED":"❌"}[f["status"]]
             out.append(f"{icon} {f['name']} ({f['objects']} objects)")
+
+
+            metrics = f.get("cut_time_geometry")
+            if metrics:
+                out.append("    LASER TIME GEOMETRY (measurements only; estimate not calibrated)")
+                out.append(
+                    f"      Blue cutting: {metrics['cut_straight_length_mm']:.1f} mm straight + "
+                    f"{metrics['cut_curve_length_mm']:.1f} mm curves"
+                )
+                out.append(
+                    f"      Green engraving: {metrics['green_engrave_straight_length_mm']:.1f} mm straight + "
+                    f"{metrics['green_engrave_curve_length_mm']:.1f} mm curves"
+                )
+                out.append(
+                    f"      Red engraving: {metrics['red_engrave_straight_length_mm']:.1f} mm straight + "
+                    f"{metrics['red_engrave_curve_length_mm']:.1f} mm curves"
+                )
+                out.append(
+                    f"      Black fill area: {metrics['black_fill_area_mm2']:.1f} mm² "
+                    f"({metrics['black_fill_unmeasurable_paths']} unmeasurable paths)"
+                )
 
             if f["drawing_size"] and f["maximum_permitted_size"]:
                 dw, dh = f["drawing_size"]
