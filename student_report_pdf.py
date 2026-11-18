@@ -48,6 +48,13 @@ TEXT = {
         "repairs": "Automatic corrections",
         "drawing_size": "Drawing size",
         "maximum_size": "Maximum permitted size",
+        "laser_geometry": "LASER OPERATION GEOMETRY (measurements only)",
+        "cut_straight": "Blue cutting — straight",
+        "cut_curves": "Blue cutting — curves",
+        "green_engraving": "Green vector engraving",
+        "red_engraving": "Red vector engraving",
+        "black_fill": "Black filled engraving area",
+        "not_estimated": "No time estimate yet — machine calibration is still being validated.",
         "object_count": "Vector objects",
         "no_details": "No additional details.",
         "svg_warning_title": "CHECK BEFORE BOOKING — ",
@@ -78,6 +85,13 @@ TEXT = {
         "repairs": "Corrections automatiques",
         "drawing_size": "Dimensions du dessin",
         "maximum_size": "Dimensions maximales autorisées",
+        "laser_geometry": "GÉOMÉTRIE DES OPÉRATIONS LASER (mesures uniquement)",
+        "cut_straight": "Découpe bleue — lignes droites",
+        "cut_curves": "Découpe bleue — courbes",
+        "green_engraving": "Gravure vectorielle verte",
+        "red_engraving": "Gravure vectorielle rouge",
+        "black_fill": "Surface de gravure remplie noire",
+        "not_estimated": "Aucune estimation de durée pour le moment — l’étalonnage des machines est en cours de validation.",
         "object_count": "Objets vectoriels",
         "no_details": "Aucun détail supplémentaire.",
         "svg_warning_title": "À VÉRIFIER AVANT RENDEZ-VOUS — ",
@@ -597,6 +611,38 @@ def save_student_report(report, path, project, language="en", svg_created=False)
                     styles["small"],
                 )
             )
+
+
+        laser_geometry = item.get("cut_time_geometry")
+        if laser_geometry:
+            block.append(Spacer(1, 1.5 * mm))
+            block.append(Paragraph(escape(labels["laser_geometry"]), styles["body"]))
+            block.append(Paragraph(
+                f'{escape(labels["cut_straight"])}: '
+                f'{_format_decimal(laser_geometry.get("cut_straight_length_mm", 0), language)} mm',
+                styles["small"],
+            ))
+            block.append(Paragraph(
+                f'{escape(labels["cut_curves"])}: '
+                f'{_format_decimal(laser_geometry.get("cut_curve_length_mm", 0), language)} mm',
+                styles["small"],
+            ))
+            block.append(Paragraph(
+                f'{escape(labels["green_engraving"])}: '
+                f'{_format_decimal(laser_geometry.get("green_engrave_straight_length_mm", 0) + laser_geometry.get("green_engrave_curve_length_mm", 0), language)} mm',
+                styles["small"],
+            ))
+            block.append(Paragraph(
+                f'{escape(labels["red_engraving"])}: '
+                f'{_format_decimal(laser_geometry.get("red_engrave_straight_length_mm", 0) + laser_geometry.get("red_engrave_curve_length_mm", 0), language)} mm',
+                styles["small"],
+            ))
+            block.append(Paragraph(
+                f'{escape(labels["black_fill"])}: '
+                f'{_format_decimal(laser_geometry.get("black_fill_area_mm2", 0), language)} mm²',
+                styles["small"],
+            ))
+            block.append(Paragraph(escape(labels["not_estimated"]), styles["small"]))
 
         _add_bullet_section(
             block, labels["alerts"], item.get("alerts", []), styles, language

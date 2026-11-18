@@ -17,6 +17,7 @@ from collinear_overlap_diagnostic import (
 from color_analysis import analyse_colors
 from colour_normalization import normalize_colours
 from complexity import analyse_complexity, analyse_pdf_complexity, analyse_pdf_content
+from cut_time_estimator import analyse_drawing as analyse_cut_time_geometry
 from config import (
     DEBUG, DISPLAY_OFFSET_X_MM, DISPLAY_OFFSET_Y_MM,
     LARGE_USABLE_HEIGHT_MM, LARGE_USABLE_WIDTH_MM,
@@ -749,6 +750,13 @@ def process_project(
         build_paths(drawing)
 
         process_black_engraving(drawing)
+
+        # Measure operation-specific geometry after colour normalization,
+        # cleanup and black-fill boolean processing. Time prediction is
+        # intentionally withheld until machine calibration is validated.
+        cut_time_geometry = analyse_cut_time_geometry(drawing)
+        report.cut_time_geometry(cut_time_geometry)
+        dev_report.cut_time_geometry(cut_time_geometry)
 
         report.cleanup(
             removed_zero,
