@@ -42,7 +42,9 @@ def test_bezier_length_is_between_chord_and_control_polygon():
         (0, 0, 255), 0.01,
     )
     length = bezier_length(curve)
-    assert 10 < length < 20
+    chord = 10.0
+    control_polygon = 30.0
+    assert chord < length < control_polygon
 
 
 def test_measures_black_filled_rectangle_area():
