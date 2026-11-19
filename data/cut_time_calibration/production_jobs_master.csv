@@ -1,0 +1,12 @@
+job_id,date,svg_filename,machine,actual_time_seconds,notes,path_count,blue_cut_paths,green_engrave_paths,red_engrave_paths,black_fill_paths,optimisation,profile_filename,profile_adjusted,speed_factor,material,blue_cut_straight_mm,blue_cut_curves_mm,green_vector_mm,red_vector_mm,black_fill_area_mm2,repeat_number,operator_notes
+JOB-0001,2026-11-12,3m10s_100W.svg,100W,190,,77.0,,,,,,,,,,,,,,,,
+JOB-0002,2026-11-12,6m45s_100W.svg,100W,405,,65.0,,,,,,,,,,,,,,,,
+JOB-0003,2026-11-12,6m50s_100W.svg,100W,410,,69.0,,,,,,,,,,,,,,,,
+JOB-0004,2026-11-12,43m16s_60W_OPT_OFF.svg,60W,2596,,1649.0,,,,,Both options OFF,,,,,,,,,,,
+JOB-0005,2026-11-12,10m25s_100W.svg,100W,625,Same SVG geometry as JOB-0006,1417.0,102.0,1315.0,0.0,0.0,,,,,,,,,,,,
+JOB-0006,2026-11-12,15m06s_60W_OPT_ON.svg,60W,906,Same SVG geometry as JOB-0005,1417.0,102.0,1315.0,0.0,0.0,Both options ON,,,,,,,,,,,
+JOB-0007,2026-11-12,21m47s_60W_OPT_ON.svg,60W,1307,,749.0,373.0,376.0,0.0,0.0,Both options ON,,,,,,,,,,,
+JOB-0008,2026-11-13,6m22s_100W.svg,100W,382,,344.0,311.0,5.0,0.0,28.0,,,,,,,,,,,,
+JOB-0009,2026-11-13,4m34s_60W_OPT_OFF.svg,60W,274,Both options OFF,151.0,50.0,57.0,44.0,0.0,Both options OFF,,,,,,,,,,,
+JOB-0010,2026-11-19,31m10s_100W_CB-1.5.svg,100W,1870,Both optimization options ON; metrics not yet extracted,,,,,,Both options ON,,,,CB-1.5,,,,,,,Provisional; both OPT_ON settings confirmed by user.
+JOB-0011,2026-11-19,55m18s_100W_CB-1.5.svg,100W,3318,Both optimization options ON; metrics not yet extracted,,,,,,Both options ON,,,,CB-1.5,,,,,,,Provisional; both OPT_ON settings confirmed by user.
