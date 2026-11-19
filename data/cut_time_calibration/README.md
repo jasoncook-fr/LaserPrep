@@ -37,4 +37,8 @@ When new data arrives, inspect existing records, normalize it, assign the next I
 
 ## Current limitations
 
-Some production records are incomplete. Two recent 100W jobs are marked provisional pending extraction of detailed geometry. Some controlled tests contain limited experimental context (e.g. fill orientation details or time formatting ambiguity in the source workbook); retain these limitations in analysis rather than treating them as resolved.
+Some production records are incomplete. Several jobs remain provisional pending geometry or metadata extraction. Some controlled tests contain limited experimental context (e.g. fill orientation details or time formatting ambiguity in the source workbook); retain these limitations in analysis rather than treating them as resolved.
+
+## Paired production observation (2026-11-19)
+
+JOB-0014 (100W, 28:53) and JOB-0015 (60W, 26:00) record the same LaGesse SVG geometry, using CB-1.5 and both optimization options ON. Geometry was verified identical: 16,950.816 mm blue straight cutting and 43,210.096 mm green vector engraving; 549 paths total (28 blue, 521 green). These actual durations are ground truth. Subtracting provisional straight-cut estimates (~356.8 s for 100W and ~358.5 s for 60W) leaves residuals of ~1,376.2 s and ~1,201.5 s respectively. Those residuals include engraving and machine/job overhead and must not be treated as measured engraving-only times or generalized coefficients. Source SVGs are referenced by filename; the files themselves were analyzed in-session.
