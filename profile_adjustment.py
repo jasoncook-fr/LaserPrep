@@ -11,10 +11,8 @@ import csv
 import json
 import re
 from pathlib import Path
-from typing import Iterable
 
 DEFAULT_SPEED_FACTOR = 0.90
-SPEED_KEY = "Speed"
 HEADER_RE = re.compile(r"^\s*\[([^]]+)\]\s*$")
 KEY_RE = re.compile(r"^(\s*Speed\s*=\s*)(.*?)(\s*)$", re.IGNORECASE)
 
@@ -47,11 +45,11 @@ def adjust_lcf_text(text: str, speed_factor: float, source_name: str = "") -> tu
             continue
         prefix, value, whitespace = match.groups()
         original = parse_speed_values(value)
-        adjusted = [int(round(v * speed_factor)) for v in original]
         if len(original) != 8:
             raise ValueError(
                 f"{source_name or '<input>'}:{line_number}: expected 8 speed slots, found {len(original)}"
             )
+        adjusted = [int(round(v * speed_factor)) for v in original]
         for slot, (old, new) in enumerate(zip(original, adjusted), 1):
             audits.append({
                 "source_file": source_name,
@@ -71,8 +69,8 @@ def adjust_lcf_text(text: str, speed_factor: float, source_name: str = "") -> tu
 
 def process_directory(input_dir: Path, output_dir: Path, speed_factor: float = DEFAULT_SPEED_FACTOR) -> list[dict]:
     input_dir, output_dir = input_dir.resolve(), output_dir.resolve()
-    if input_dir == output_dir or input_dir in output_dir.parents:
-        raise ValueError("Output directory must not be inside the input directory")
+    if input_dir == output_dir or input_dir in output_dir.parents or output_dir in input_dir.parents:
+        raise ValueError("Input and output directories must not overlap")
     files = sorted(input_dir.rglob("*.lcf"))
     if not files:
         raise ValueError(f"No .lcf files found in {input_dir}")
