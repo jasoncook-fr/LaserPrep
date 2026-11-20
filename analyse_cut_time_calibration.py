@@ -209,7 +209,7 @@ def build_report(controlled, production, fill_fits, cut_groups, plots_available)
     for row in production:
         populated = [k for k in ("blue_cut_straight_mm","blue_cut_curves_mm","green_vector_mm","red_vector_mm","black_fill_area_mm2") if row.get(k)]
         note = (row.get("notes") or row.get("operator_notes") or "").replace("|", "\\|")
-        lines.append(f"| {row.get('job_id')} | {row.get('machine')} | {row.get('actual_time_seconds')} | {', '.join(populated) or 'none'} | {note} |")
+        lines.append(f"| {row.get('job_id')} | {row.get('machine')} | {row.get('actual_time_seconds')} | {row.get('path_count') or 'n/a'} | {row.get('profile_filename') or 'n/a'} | {row.get('optimisation') or 'n/a'} | {', '.join(populated) or 'none'} | {note} |")
     lines.extend(["", "### Paired LaGesse jobs", "",
         "JOB-0014 and JOB-0015 are recorded as same geometry, 16,950.816 mm blue straight cut plus 43,210.096 mm green vector engraving, both optimization options ON, and different machines. Their measured total runtimes are 1,733 s (100W) and 1,560 s (60W).",
         "",
