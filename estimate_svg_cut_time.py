@@ -36,7 +36,7 @@ def cubic(p0,p1,p2,p3,t):
             u**3*p0[1]+3*u*u*t*p1[1]+3*u*t*t*p2[1]+t**3*p3[1])
 
 def parse_path(d):
-    """Flatten supported M/L/C/Z commands; identify the first unsupported command."""
+    """Flatten supported M/L/H/V/C/Z commands; identify unsupported commands."""
     tokens=TOKEN.findall(d or "")
     subpaths=[]; current=[]; pos=(0.,0.); start=None; cmd=None; i=0; total=0.
     def add(pt):
@@ -60,6 +60,12 @@ def parse_path(d):
             elif c=="L":
                 x,y=float(tokens[i]),float(tokens[i+1]); i+=2
                 add((x+pos[0],y+pos[1]) if rel else (x,y))
+            elif c=="H":
+                x=float(tokens[i]); i+=1
+                add((x+pos[0],pos[1]) if rel else (x,pos[1]))
+            elif c=="V":
+                y=float(tokens[i]); i+=1
+                add((pos[0],y+pos[1]) if rel else (pos[0],y))
             elif c=="C":
                 vals=list(map(float,tokens[i:i+6])); i+=6
                 p0=pos
