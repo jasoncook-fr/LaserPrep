@@ -204,8 +204,8 @@ def build_report(controlled, production, fill_fits, cut_groups, plots_available)
             lines.append(f"| {key[0]} | {key[1]} | {key[2]} | {fmt(slope,6)} | {fmt(intercept,2)} | {fmt(r2,4)} |")
     lines.extend(["", "These regressions confound nominal distance and spline fraction, and source notes flag distance reliability. They must not be interpreted as isolated line/spline rates or optimization multipliers.", "",
         "## Production data audit", "",
-        "| Job | Machine | Runtime (s) | Geometry fields populated | Notes |",
-        "|---|---|---:|---|---|"])
+        "| Job | Machine | Runtime (s) | Path count | Profile | Optimization | Numeric geometry fields populated | Notes |",
+        "|---|---|---:|---:|---|---|---|---|"])
     for row in production:
         populated = [k for k in ("blue_cut_straight_mm","blue_cut_curves_mm","green_vector_mm","red_vector_mm","black_fill_area_mm2") if row.get(k)]
         note = (row.get("notes") or row.get("operator_notes") or "").replace("|", "\\|")
@@ -215,8 +215,10 @@ def build_report(controlled, production, fill_fits, cut_groups, plots_available)
         "",
         "These are a useful paired production comparison, but the existing notes' residuals after provisional cutting subtraction are not measured engraving-only times. Do not use these two jobs to independently validate and fit the same coefficients.",
         "",
-        "## Additional recent production observations", "",
-        "JOB-0016 and JOB-0017 were added from two SVG production files measured on 2026-11-20. Path counts and profile/optimization notes are captured in the ledger; geometry length/area metrics remain pending and these records are not used to fit controlled coefficients.",
+        "## Recent production observations and measurement caveats", "",
+        "JOB-0016 and JOB-0017 have geometry measurements recorded in the production ledger. These measurements are observational and are not used to fit the controlled coefficients.", "",
+        "JOB-0016's blue geometry length was extracted from the original PDF as a total measurement. Its straight-versus-curve breakdown was not established; the ledger field placement must not be interpreted as a confirmed straight-only length. The provenance and limitation are documented in the record notes.", "",
+        "JOB-0017 geometry values were extracted from the raw SVG and are documented with their extraction method and caveats in the ledger notes. They represent raw geometry, not necessarily post-LaserPrep cleanup geometry.",
         "",
         "## Plot output", "",
         ("Matplotlib plots generated in this directory." if plots_available else "Matplotlib was not available; plots skipped. Install Matplotlib to enable plots."),
