@@ -45,3 +45,7 @@ Test the estimator on a large final LaserPrep SVG that is believed to take hours
 - Filled engraving area is not yet modeled in this prototype.
 - A simple length/rate model can be inaccurate; benchmark validation is required.
 - Do not silently update coefficients from a single benchmark.
+
+
+### Prototype dependency / portability note
+The prototype currently reads `data/cut_time_calibration/analysis_output/geometry_extraction/geometry_summary.csv`, a locally generated analysis file that is **not committed on this branch**. It will therefore not run on a fresh checkout unless that analysis CSV is generated or copied into place. The script is retained to document the calculation used during this experiment, not as a portable ready-to-run tool. A next development task is to make the estimator consume a user-specified SVG and extract geometry itself (using the experimental extractor), or otherwise formalize and commit a reproducible input dataset.
