@@ -586,3 +586,8 @@ Development priorities include:
 ## License
 
 MIT License
+
+
+## Experimental time-estimation research
+
+A separate, deliberately provisional runtime-estimation experiment is documented in [`data/cut_time_calibration/experimental_estimation/README.md`](data/cut_time_calibration/experimental_estimation/README.md). Its validation observations are stored separately in `benchmark_results.csv`. This work is not integrated into production processing, alerts, or rejection logic. See the experiment documentation before continuing.
