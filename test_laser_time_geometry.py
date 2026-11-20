@@ -1,6 +1,6 @@
 import unittest
 import math
-from laser_time_geometry import extract_svg, color_name, Affine
+from laser_time_geometry import extract_svg, color_name, Affine, report_dict
 
 class GeometryTests(unittest.TestCase):
     def test_color(self):
@@ -28,6 +28,15 @@ class GeometryTests(unittest.TestCase):
     def test_unsupported(self):
         r=extract_svg('<svg><path stroke="blue" d="M0 0 L1 1"/></svg>')
         self.assertEqual(r.path_count,1)
+
+    def test_diagnostic_breakdown(self):
+        r=extract_svg('<svg><path id="a" stroke="blue" fill="black" d="M0 0 L10 0 L10 10 Z"/></svg>')
+        d=report_dict(r)
+        self.assertIn("by_stroke_color",d)
+        self.assertIn("path_details",d)
+        self.assertEqual(d["path_details"][0]["id"],"a")
+        self.assertAlmostEqual(d["by_stroke_color"]["blue"]["stroke_length_mm"],10+10+math.sqrt(200),places=3)
+
 if __name__=="__main__":
     import math
     unittest.main()
