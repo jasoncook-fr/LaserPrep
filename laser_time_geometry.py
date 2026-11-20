@@ -261,7 +261,31 @@ def extract_svg(source, tolerance_mm=0.5):
     return report
 
 def report_dict(report):
+    """Return a detailed diagnostic summary, retaining the original summary fields."""
     lengths=report.category_lengths()
-    return {"path_count":report.path_count,"lengths_mm":lengths,"black_fill_area_mm2":report.fill_area(),
-            "unsupported_commands":dict(report.unsupported_commands),"unsupported_elements":sorted(set(report.unsupported_elements)),
+    by_color={}
+    path_details=[]
+    for i,p in enumerate(report.paths,1):
+        stroke=p.stroke or "none"
+        fill=p.fill or "none"
+        color_key=stroke
+        bucket=by_color.setdefault(color_key,{"path_count":0,"stroke_length_mm":0.0,
+            "fill_area_mm2":0.0,"filled_path_count":0,"closed_path_count":0})
+        bucket["path_count"]+=1
+        if stroke!="none":
+            bucket["stroke_length_mm"]+=p.length_mm
+        if fill!="none" and p.closed:
+            bucket["fill_area_mm2"]+=p.area_mm2
+            bucket["filled_path_count"]+=1
+        if p.closed: bucket["closed_path_count"]+=1
+        path_details.append({"index":i,"id":p.source_id,"stroke":stroke,"fill":fill,
+            "closed":p.closed,"length_mm":round(p.length_mm,3),
+            "area_mm2":round(p.area_mm2,3) if p.closed else 0.0,
+            "fill_rule":p.fill_rule,"segment_count":p.segment_count,
+            "warnings":p.warnings})
+    return {"path_count":report.path_count,"lengths_mm":lengths,
+            "black_fill_area_mm2":report.fill_area(),
+            "by_stroke_color":by_color,"path_details":path_details,
+            "unsupported_commands":dict(report.unsupported_commands),
+            "unsupported_elements":sorted(set(report.unsupported_elements)),
             "warnings":report.warnings}
