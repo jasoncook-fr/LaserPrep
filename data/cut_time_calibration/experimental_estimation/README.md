@@ -37,13 +37,13 @@ These additional validation observations use the same pooled 60W OPT_ON rate (49
 - Profile: CB-1mm
 - Geometry: 42,192.49 mm total (blue cut 14,981.63 mm; vector 27,210.86 mm; black stroke 0 mm)
 - Estimate: 851 seconds (~14m11s)
-- Actual runtime: 813 seconds (13m33s)
-- Error: -38 seconds; -4.7% overestimate relative to actual
+- Actual machine runtime: 813 seconds (13m33s)
+- Error: -38 seconds; -4.7% overestimate
 
 ## Current prototype model
 The first prototype is deliberately simple:
 `estimated seconds = total categorized stroked length (mm) / pooled effective rate (mm/s)`
-The prototype groups historical specimens by machine and explicit optimization marker in the specimen filename, then pools length and runtime for the group. For the first comparison, it used 60W / OPT_ON. Filenames lacking an explicit OPT marker are treated as UNKNOWN, not guessed. The experimental script currently has Benchmark #001 geometry hard-coded and is a prototype; make it accept arbitrary geometry before considering operational integration.
+The prototype groups historical specimens by machine and explicit optimization marker in the specimen filename, then pools length and runtime for the group. For the first comparison, it used 60W / OPT_ON. Filenames lacking an explicit OPT marker are treated as UNKNOWN, not guessed. The experimental script currently has Benchmark #001 geometry hard-coded; make it accept arbitrary geometry before considering operational integration.
 
 ## Files
 - `benchmark_results.csv`: benchmark validation ledger; record predicted and actual time, inputs and provenance here. It is distinct from controlled calibration and production job ledgers.
@@ -65,13 +65,12 @@ Test the estimator on a large final LaserPrep SVG that is believed to take hours
 - Samples are few and conditions are heterogeneous.
 - Effective rates conflate cutting, vector movement/engraving, travel, path ordering, acceleration, job overhead, profile, material and other factors.
 - OPT_ON/OFF metadata may be incomplete in legacy filenames.
-- Filled engraving area is not yet modeled in this prototype.
+- Filled engraving area is not yet modeled by the prototype.
 - A simple length/rate model can be inaccurate; benchmark validation is required.
 - Do not silently update coefficients from a single benchmark.
 
 ### Prototype dependency / portability note
 The prototype currently reads `data/cut_time_calibration/analysis_output/geometry_extraction/geometry_summary.csv`, a locally generated analysis file that is **not committed on this branch**. It will therefore not run on a fresh checkout unless that analysis CSV is generated or copied into place. The script is retained to document the calculation used during this experiment, not as a portable ready-to-run tool. A next development task is to make the estimator consume a user-specified SVG and extract geometry itself (using the experimental extractor), or otherwise formalize and commit a reproducible input dataset.
-
 
 ## Benchmark #004 (2026-11-24)
 - Source SVG: 11m23s_100W_CB-2mm_OPT_ON.svg
@@ -80,6 +79,33 @@ The prototype currently reads `data/cut_time_calibration/analysis_output/geometr
 - JcT Curves: not confirmed
 - Profile: CB-2mm
 - Actual machine runtime: 683 seconds (11m23s)
-- Geometry totals and estimate: pending geometry extraction; this observation is recorded provisionally without a prediction or error calculation.
+- Geometry totals and estimate: pending geometry extraction; no prediction or error calculation.
 
 This is a provisional benchmark record only. Do not recalibrate from it until the geometry is extracted and the machine/profile settings are confirmed.
+
+## Benchmarks #005 and #006 — Black-fill engraving pair (2026-11-24)
+These two observations use identical SVG geometry and contain black filled paths only. They are intended as comparative fill-engraving runtime observations for the two machines, not yet as calibration coefficients.
+
+### Benchmark #005
+- Source SVG: `22m13s_100W_CB-2mm_OPT_ON.svg`
+- Machine: 100W
+- Profile: CB-2mm
+- Vector optimization: ON (filename)
+- JcT Curves: unknown
+- Actual runtime: 1,333 seconds (22m13s)
+- SVG dimensions: 1000 × 600 mm
+- Geometry: 17 paths, all black fill (`#000000`), no strokes
+- Fill geometry: identical to Benchmark #006; filled-area measurement not yet extracted
+
+### Benchmark #006
+- Source SVG: `15m25s_60W_CB-2mm_OPT_OFF.svg`
+- Machine: 60W
+- Profile: CB-2mm
+- Vector optimization: OFF (filename)
+- JcT Curves: unknown
+- Actual runtime: 925 seconds (15m25s)
+- SVG dimensions: 1000 × 600 mm
+- Geometry: 17 paths, all black fill (`#000000`), no strokes
+- Fill geometry: identical to Benchmark #005; filled-area measurement not yet extracted
+
+The two SVGs were inspected and their path geometry (`d` attributes) verified identical. Their paths are uniformly black-filled and have no stroke. The runtimes are not a clean machine-power comparison because vector optimization differs (ON for 100W, OFF for 60W); JcT Curves settings were not confirmed. No model estimate was made and no coefficients were changed. These are experimental fill-engraving observations.
