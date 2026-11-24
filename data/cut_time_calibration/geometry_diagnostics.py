@@ -45,8 +45,8 @@ def trans(s):
   else:continue
   R=mul(R,M)
  return R
-def length(p,M):
- if M==(1,0,0,1,0,0):return p.length(error=1e-4)*PT
+def length(p,M,scale):
+ if M==(1,0,0,1,0,0):return p.length(error=1e-4)*scale
  a,b,c,d,e,f=M;total=0
  for seg in p:
   prev=None
@@ -54,9 +54,19 @@ def length(p,M):
    z=seg.point(i/100);cur=complex(a*z.real+c*z.imag+e,b*z.real+d*z.imag+f)
    if prev is not None:total+=abs(cur-prev)
    prev=cur
- return total*PT
+ return total*scale
 def parse(file):
  root=ET.parse(file).getroot();L=Counter();SC=Counter();FC=Counter();PC=Counter();err=0;paths=0
+ def physical_mm(s):
+  m=re.fullmatch(r\"\\s*([0-9.]+)\\s*(mm|cm|in|inch|pt|px)?\\s*\",(s or \"\").lower())
+  if not m:return None
+  v=float(m.group(1));u=m.group(2) or \"px\"
+  return v*{\"mm\":1,\"cm\":10,\"in\":25.4,\"inch\":25.4,\"pt\":25.4/72,\"px\":25.4/96}[u]
+ vb=root.attrib.get(\"viewBox\",\"\").split(); scale=PT
+ if len(vb)==4:
+  dw=physical_mm(root.attrib.get(\"width\")); dh=physical_mm(root.attrib.get(\"height\"))
+  if dw:scale=dw/float(vb[2])
+  elif dh:scale=dh/float(vb[3])
  def walk(n,inh,M):
   nonlocal err,paths
   tag=n.tag.split("}",1)[-1]
@@ -67,21 +77,21 @@ def parse(file):
    if stroke in COL.values():PC[next(k for k,v in COL.items() if v==stroke)]+=1
    try:
     p=parse_path(n.attrib["d"])
-    if stroke in (COL["blue"],COL["green"],COL["red"]):L[next(k for k,v in COL.items() if v==stroke)]+=length(p,M2)
+    if stroke in (COL["blue"],COL["green"],COL["red"]):L[next(k for k,v in COL.items() if v==stroke)]+=length(p,M2,scale)
    except Exception as ex:err+=1;print("PATH ERROR",file.name,ex,file=sys.stderr)
   for ch in n:walk(ch,st,M2)
  walk(root,{},(1,0,0,1,0,0))
- return root.attrib,L,SC,FC,PC,err,paths
+ return root.attrib,L,SC,FC,PC,err,paths,scale
 def main():
  rows=[]
  for f in sorted(DIR.glob("*.svg")):
   m=re.match(r"^(\d+)m(\d+)s",f.name);machine=re.search(r"(60W|100W)",f.name,re.I)
   if not m or not machine:print("SKIP",f.name);continue
   actual=int(m[1])*60+int(m[2]);mach=machine[1].upper()
-  a,L,SC,FC,PC,err,n=parse(f);vb=a.get("viewBox","missing");w=a.get("width","missing");h=a.get("height","missing")
+  a,L,SC,FC,PC,err,n,scale=parse(f);vb=a.get("viewBox","missing");w=a.get("width","missing");h=a.get("height","missing")
   print("\n"+f.name);print(f"  width={w} height={h} viewBox={vb} path elements={n}")
   print("  stroke counts:",dict(SC));print("  fill counts:",dict(FC));print("  target stroke path counts:",dict(PC))
-  print(f"  measured length (current conversion): blue={L['blue']:.2f} green={L['green']:.2f} red={L['red']:.2f} mm; black-filled paths={FC.get('#000000',0)}")
+  print(f"  measured length (physical viewBox scale): blue={L['blue']:.2f} green={L['green']:.2f} red={L['red']:.2f} mm; black-filled paths={FC.get('#000000',0)}, scale={scale:.5f} mm/unit}")
   est=estimate(machine=mach,blue_straight_mm=L['blue'],green_vector_mm=L['green'],red_vector_mm=L['red'],overhead_seconds=120)
   rows.append(dict(file=f.name,machine=mach,actual_seconds=actual,width=w,height=h,viewBox=vb,path_count=n,stroke_counts=str(dict(SC)),fill_counts=str(dict(FC)),blue_paths=PC.get('blue',0),green_paths=PC.get('green',0),red_paths=PC.get('red',0),blue_mm=L['blue'],green_mm=L['green'],red_mm=L['red'],black_fill_paths=FC.get('#000000',0),parse_errors=err,estimate_seconds=est['total_seconds'],error_seconds=est['total_seconds']-actual))
  with OUT.open("w",newline="",encoding="utf-8") as o:
