@@ -17,6 +17,29 @@ This is an isolated research experiment intended to produce a rough runtime esti
 
 Geometry totals were validated with a second independent parser for this SVG. Filled-area engraving was not included in the initial model. The estimate used a pooled 60W OPT_ON rate from only two historical observations, so this is an early sanity check, not a validated model.
 
+## Benchmarks #002 and #003 (2026-11-24)
+These additional validation observations use the same pooled 60W OPT_ON rate (49.58 mm/s) and are recorded without recalibrating the model.
+
+### Benchmark #002
+- Source SVG: 22m29s_60W_CB-2mm_OPT_ON.svg
+- Machine: 60W
+- Optimization: Optim. Vectors ON; JcT Courbes ON
+- Profile: CB-2mm
+- Geometry: 49,512.04 mm total (blue cut 48,530.16 mm; vector 981.88 mm; black stroke 0 mm)
+- Estimate: 999 seconds (~16m39s)
+- Actual runtime: 1,349 seconds (22m29s)
+- Error: +350 seconds; +25.9% underestimate relative to actual
+
+### Benchmark #003
+- Source SVG: 13m33s_60W_CB_1mm_OPT_ON.svg
+- Machine: 60W
+- Optimization: Optim. Vectors ON; JcT Courbes ON
+- Profile: CB-1mm
+- Geometry: 42,192.49 mm total (blue cut 14,981.63 mm; vector 27,210.86 mm; black stroke 0 mm)
+- Estimate: 851 seconds (~14m11s)
+- Actual runtime: 813 seconds (13m33s)
+- Error: -38 seconds; -4.7% overestimate relative to actual
+
 ## Current prototype model
 The first prototype is deliberately simple:
 `estimated seconds = total categorized stroked length (mm) / pooled effective rate (mm/s)`
@@ -45,7 +68,6 @@ Test the estimator on a large final LaserPrep SVG that is believed to take hours
 - Filled engraving area is not yet modeled in this prototype.
 - A simple length/rate model can be inaccurate; benchmark validation is required.
 - Do not silently update coefficients from a single benchmark.
-
 
 ### Prototype dependency / portability note
 The prototype currently reads `data/cut_time_calibration/analysis_output/geometry_extraction/geometry_summary.csv`, a locally generated analysis file that is **not committed on this branch**. It will therefore not run on a fresh checkout unless that analysis CSV is generated or copied into place. The script is retained to document the calculation used during this experiment, not as a portable ready-to-run tool. A next development task is to make the estimator consume a user-specified SVG and extract geometry itself (using the experimental extractor), or otherwise formalize and commit a reproducible input dataset.
