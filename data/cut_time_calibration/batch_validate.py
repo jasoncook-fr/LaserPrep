@@ -106,8 +106,8 @@ def parse_svg(filename):
                     path = parse_path(dpath)
                     stroke = norm_color(style.get("stroke"))
                     fill = norm_color(style.get("fill", "black"))
-                    if stroke in COLORS.values():
-                        key = next(k for k,v in COLORS.items() if v == stroke)
+                    if stroke in (COLORS["blue"], COLORS["green"], COLORS["red"]):
+                        key = next(k for k,v in COLORS.items() if v == stroke and k != "black")
                         totals[key] += transformed_length(path, combined)
                     if fill == "#000000":
                         totals["black_fill_paths"] += 1
