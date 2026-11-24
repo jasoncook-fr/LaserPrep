@@ -58,13 +58,13 @@ def length(p,M,scale):
 def parse(file):
  root=ET.parse(file).getroot();L=Counter();SC=Counter();FC=Counter();PC=Counter();err=0;paths=0
  def physical_mm(s):
-  m=re.fullmatch(r\"\\s*([0-9.]+)\\s*(mm|cm|in|inch|pt|px)?\\s*\",(s or \"\").lower())
+  m=re.fullmatch(r"\\s*([0-9.]+)\\s*(mm|cm|in|inch|pt|px)?\\s*",(s or "").lower())
   if not m:return None
-  v=float(m.group(1));u=m.group(2) or \"px\"
-  return v*{\"mm\":1,\"cm\":10,\"in\":25.4,\"inch\":25.4,\"pt\":25.4/72,\"px\":25.4/96}[u]
- vb=root.attrib.get(\"viewBox\",\"\").split(); scale=PT
+  v=float(m.group(1));u=m.group(2) or "px"
+  return v*{"mm":1,"cm":10,"in":25.4,"inch":25.4,"pt":25.4/72,"px":25.4/96}[u]
+ vb=root.attrib.get("viewBox","").split(); scale=PT
  if len(vb)==4:
-  dw=physical_mm(root.attrib.get(\"width\")); dh=physical_mm(root.attrib.get(\"height\"))
+  dw=physical_mm(root.attrib.get("width")); dh=physical_mm(root.attrib.get("height"))
   if dw:scale=dw/float(vb[2])
   elif dh:scale=dh/float(vb[3])
  def walk(n,inh,M):
