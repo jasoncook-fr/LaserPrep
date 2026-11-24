@@ -109,3 +109,40 @@ These two observations use identical SVG geometry and contain black filled paths
 - Fill geometry: identical to Benchmark #005; filled-area measurement not yet extracted
 
 The two SVGs were inspected and their path geometry (`d` attributes) verified identical. Their paths are uniformly black-filled and have no stroke. The runtimes are not a clean machine-power comparison because vector optimization differs (ON for 100W, OFF for 60W); JcT Curves settings were not confirmed. No model estimate was made and no coefficients were changed. These are experimental fill-engraving observations.
+
+
+## Benchmarks #007 and #008 — Mixed-operation Shapely-estimator comparison (2026-11-24)
+
+These observations use the same SVG geometry, but different machines and vector-optimization states. They are validation observations only; the comparison does not isolate the effect of machine wattage or optimization.
+
+### Benchmark #007
+- Source SVG: `7m26s_60W_CB-2mm_OPT_OFF.svg`
+- Machine: 60W
+- Profile: CB-2mm
+- Vector optimization: OFF (filename)
+- JcT Curves: unknown
+- Actual runtime: 446 seconds (7m26s)
+- SVG paths: 42
+- Geometry: blue cut 302.857 mm; other vector strokes 485.868 mm; total categorized stroke length 788.725 mm
+- Black fill union area (Shapely): 1,294.640 mm²
+- Prototype estimate: 62.1 seconds, assuming 100% fill speed and Normal scan
+- Estimate components: blue cut 6.4 s; other vector 17.5 s; black fill 38.1 s
+- Difference (actual minus estimate): approximately 384 seconds; 86.1% of actual runtime
+
+### Benchmark #008
+- Source SVG: `6m17s_100W_CB-2mm_OPT_ON.svg`
+- Machine: 100W
+- Profile: CB-2mm
+- Vector optimization: ON (filename)
+- JcT Curves: unknown
+- Actual runtime: 377 seconds (6m17s)
+- SVG paths: 42
+- Geometry: identical to Benchmark #007; blue cut 302.857 mm; other vector strokes 485.868 mm; total categorized stroke length 788.725 mm
+- Black fill union area (Shapely): 1,294.640 mm²
+- Prototype estimate: 76.1 seconds, assuming 100% fill speed and Normal scan
+- Estimate components: blue cut 6.4 s; other vector 15.3 s; black fill 54.5 s
+- Difference (actual minus estimate): approximately 301 seconds; 79.8% of actual runtime
+
+The SVG path geometry was verified identical between these two files. The Shapely prototype uses union-based geometry for the black filled paths in these specimens. The estimated times remain conditional on the CLI settings supplied for these runs (100% fill speed, Normal scan), which were not independently confirmed as the actual machine settings. The estimator substantially underpredicts both runtimes. The 100W estimate is higher than the 60W estimate despite identical geometry; this is an artifact of the current regression coefficients, not evidence that the 100W machine is slower.
+
+No calibration coefficients were changed. These entries should be treated as validation observations, not calibration points.
