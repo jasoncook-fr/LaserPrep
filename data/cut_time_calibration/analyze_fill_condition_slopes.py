@@ -16,9 +16,9 @@ def main():
  print("Condition-specific descriptive slopes and three-point curvature")
  print("Slope is estimated from endpoints; curvature compares the middle observation with the endpoint linear interpolation.")
  for key,vals in sorted(data.items()):
-  vals=sorted(vals); x1,y1=vals[0][0],vals[0][1];x2,y2=vals[-1][0],vals[-1][1]
+  vals=sorted(vals);x1,y1=vals[0][0],vals[0][1];x2,y2=vals[-1][0],vals[-1][1]
   slope=(y2-y1)/(x2-x1);intercept=y1-slope*x1
-  xm,ym=vals[1];linear_mid=intercept+slope*xm;curv=ym-linear_mid
+  xm,ym,_=vals[1];linear_mid=intercept+slope*xm;curv=ym-linear_mid
   print(f"\n{key[0]:>4} | {key[1]:>3} | {key[2]}")
   for x,y,rid in vals:print(f"  {x:>5.0f}mm: {y:>7.2f}s ({rid})")
   print(f"  endpoint slope: {slope:.5f} seconds/mm; intercept: {intercept:.2f}s")
