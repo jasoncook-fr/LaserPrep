@@ -91,7 +91,8 @@ def main():
   a,L,SC,FC,PC,err,n,scale=parse(f);vb=a.get("viewBox","missing");w=a.get("width","missing");h=a.get("height","missing")
   print("\n"+f.name);print(f"  width={w} height={h} viewBox={vb} path elements={n}")
   print("  stroke counts:",dict(SC));print("  fill counts:",dict(FC));print("  target stroke path counts:",dict(PC))
-  print(f"  measured length (physical viewBox scale): blue={L['blue']:.2f} green={L['green']:.2f} red={L['red']:.2f} mm; black-filled paths={FC.get('#000000',0)}, scale={scale:.5f} mm/unit}")
+  black_fill_count=FC.get("#000000",0)
+  print(f"  measured length (physical viewBox scale): blue={L['blue']:.2f} green={L['green']:.2f} red={L['red']:.2f} mm; black-filled paths={black_fill_count}, scale={scale:.5f} mm/unit")
   est=estimate(machine=mach,blue_straight_mm=L['blue'],green_vector_mm=L['green'],red_vector_mm=L['red'],overhead_seconds=120)
   rows.append(dict(file=f.name,machine=mach,actual_seconds=actual,width=w,height=h,viewBox=vb,path_count=n,stroke_counts=str(dict(SC)),fill_counts=str(dict(FC)),blue_paths=PC.get('blue',0),green_paths=PC.get('green',0),red_paths=PC.get('red',0),blue_mm=L['blue'],green_mm=L['green'],red_mm=L['red'],black_fill_paths=FC.get('#000000',0),parse_errors=err,estimate_seconds=est['total_seconds'],error_seconds=est['total_seconds']-actual))
  with OUT.open("w",newline="",encoding="utf-8") as o:
