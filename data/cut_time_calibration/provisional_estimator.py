@@ -25,7 +25,7 @@ def _parse_fill_rows():
         for row in csv.DictReader(f):
             if not row.get("measurement_type","").lower().startswith("filled engraving"): continue
             import re
-            m=re.search(r"(\\d+(?:\\.\\d+)?)\\s*[x×]\\s*(\\d+(?:\\.\\d+)?)\\s*mm",row.get("geometry",""),re.I)
+            m=re.search(r"(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*mm",row.get("geometry",""),re.I)
             if not m: continue
             a,b=map(float,m.groups()); length=max(a,b)
             speed="50%" if "50%" in row.get("test_group","") else "100%"
