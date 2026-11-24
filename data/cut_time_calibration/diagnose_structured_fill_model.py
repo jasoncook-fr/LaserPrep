@@ -51,7 +51,7 @@ def rmse(vals): return (sum(x*x for x in vals)/len(vals))**0.5 if vals else floa
 
 def write_csv(path, rows, fields):
     with path.open("w",newline="",encoding="utf-8") as f:
-        w=csv.DictWriter(f,fieldnames=fields);w.writeheader();w.writerows(rows)
+        w=csv.DictWriter(f,fieldnames=fields,extrasaction="ignore");w.writeheader();w.writerows(rows)
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
