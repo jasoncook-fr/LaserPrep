@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data" / "cut_time_calibration" / "controlled_tests_master.csv"
 
 def area_from_geometry(text: str):
-    m = re.search(r"(\\d+(?:\\.\\d+)?)\\s*[x×]\\s*(\\d+(?:\\.\\d+)?)\\s*mm", text, re.I)
+    m = re.search(r"(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*mm", text, re.I)
     return float(m.group(1))*float(m.group(2)) if m else None
 
 def fit(x, y):
@@ -51,7 +51,7 @@ def main():
     a=p.parse_args()
     rows,slope,intercept,r2=calibration(a.machine,a.speed,a.scan)
     estimate=max(0.0,slope*a.area_mm2+intercept)
-    print("\\nLASERPREP — EXPERIMENTAL FILLED ENGRAVING ESTIMATE")
+    print("\nLASERPREP — EXPERIMENTAL FILLED ENGRAVING ESTIMATE")
     print("="*54)
     print(f"Machine:       {a.machine}")
     print(f"Speed:         {a.speed}")
@@ -62,6 +62,6 @@ def main():
     print(f"R²:            {r2:.3f}")
     print("-"*54)
     print(f"ESTIMATED FILL TIME: {estimate:.1f} sec ({estimate/60:.2f} min)")
-    print("\\nScope: filled engraving only. No cutting, vector engraving or overhead.")
+    print("\nScope: filled engraving only. No cutting, vector engraving or overhead.")
     print("Experimental: only three measured areas underpin each selected condition.")
 if __name__=="__main__": main()
