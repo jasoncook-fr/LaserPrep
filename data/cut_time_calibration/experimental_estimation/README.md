@@ -71,3 +71,15 @@ Test the estimator on a large final LaserPrep SVG that is believed to take hours
 
 ### Prototype dependency / portability note
 The prototype currently reads `data/cut_time_calibration/analysis_output/geometry_extraction/geometry_summary.csv`, a locally generated analysis file that is **not committed on this branch**. It will therefore not run on a fresh checkout unless that analysis CSV is generated or copied into place. The script is retained to document the calculation used during this experiment, not as a portable ready-to-run tool. A next development task is to make the estimator consume a user-specified SVG and extract geometry itself (using the experimental extractor), or otherwise formalize and commit a reproducible input dataset.
+
+
+## Benchmark #004 (2026-11-24)
+- Source SVG: 11m23s_100W_CB-2mm_OPT_ON.svg
+- Machine: 100W
+- Vector optimization: ON (from filename)
+- JcT Curves: not confirmed
+- Profile: CB-2mm
+- Actual machine runtime: 683 seconds (11m23s)
+- Geometry totals and estimate: pending geometry extraction; this observation is recorded provisionally without a prediction or error calculation.
+
+This is a provisional benchmark record only. Do not recalibrate from it until the geometry is extracted and the machine/profile settings are confirmed.
