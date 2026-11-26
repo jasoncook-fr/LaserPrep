@@ -32,6 +32,44 @@ def _adaptive_simpson(f, a, b, tolerance=1e-8, max_depth=20):
     return recurse(a, b, fa, fm, fb, whole, tolerance, max_depth)
 
 
+def _arc_parameters(segment):
+    """Convert an SVG endpoint-form arc into center form and angular limits."""
+    x1, y1 = segment["start"]
+    x2, y2 = segment["end"]
+    rx, ry = abs(float(segment["rx"])), abs(float(segment["ry"]))
+    rotation = math.radians(float(segment["rotation"]))
+    large_arc, sweep = int(segment["large_arc"]), int(segment["sweep"])
+    if rx == 0.0 or ry == 0.0 or (x1, y1) == (x2, y2):
+        return None
+    cos_phi, sin_phi = math.cos(rotation), math.sin(rotation)
+    dx, dy = (x1-x2)/2.0, (y1-y2)/2.0
+    xp = cos_phi*dx + sin_phi*dy
+    yp = -sin_phi*dx + cos_phi*dy
+    lam = xp*xp/(rx*rx) + yp*yp/(ry*ry)
+    if lam > 1.0:
+        scale = math.sqrt(lam)
+        rx *= scale
+        ry *= scale
+    numerator = max(0.0, rx*rx*ry*ry - rx*rx*yp*yp - ry*ry*xp*xp)
+    denominator = rx*rx*yp*yp + ry*ry*xp*xp
+    factor = 0.0 if denominator == 0.0 else math.sqrt(numerator/denominator)
+    if large_arc == sweep:
+        factor = -factor
+    cxp = factor*(rx*yp/ry)
+    cyp = factor*(-ry*xp/rx)
+    cx = cos_phi*cxp - sin_phi*cyp + (x1+x2)/2.0
+    cy = sin_phi*cxp + cos_phi*cyp + (y1+y2)/2.0
+    ux, uy = (xp-cxp)/rx, (yp-cyp)/ry
+    vx, vy = (-xp-cxp)/rx, (-yp-cyp)/ry
+    theta1 = math.atan2(uy, ux)
+    delta = math.atan2(ux*vy-uy*vx, ux*vx+uy*vy)
+    if not sweep and delta > 0:
+        delta -= 2.0*math.pi
+    elif sweep and delta < 0:
+        delta += 2.0*math.pi
+    return rx, ry, theta1, delta
+
+
 def segment_length(segment, tolerance=1e-8):
     """Return segment length for line, quadratic, and cubic records.
 
@@ -40,9 +78,15 @@ def segment_length(segment, tolerance=1e-8):
     kind = segment.get("type")
     if kind == "line":
         return _distance(segment["start"], segment["end"])
+    if kind == "arc":
+        params = _arc_parameters(segment)
+        if params is None:
+            return _distance(segment["start"], segment["end"])
+        rx, ry, theta1, delta = params
+        def arc_speed(theta):
+            return math.hypot(rx*math.sin(theta), ry*math.cos(theta))
+        return _adaptive_simpson(arc_speed, theta1, theta1+delta, tolerance)
     if kind not in ("quadratic", "cubic"):
-        if kind == "arc":
-            raise NotImplementedError("Elliptical arc length is planned for a later stage")
         raise ValueError(f"Unknown segment type: {kind!r}")
 
     if kind == "quadratic":
