@@ -38,6 +38,8 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
     elements inside definitions are reported as coverage warnings. Lengths are
     geometric centerline/perimeter lengths, not laser-operation predictions.
     """
+    if tolerance_mm <= 0:
+        raise ValueError("tolerance_mm must be positive")
     root=ET.fromstring(svg_source)
     width,height=root.attrib.get("width"),root.attrib.get("height")
     if width is None or height is None:
@@ -85,5 +87,10 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
         except Exception as exc:
             warnings.append({"source_id":rec.source_id,"element_type":rec.element_type,
                             "message":str(exc)})
+    warning_types=sorted({w.get("element_type", "unknown") for w in warnings})
     return {"elements":results,"total_length_mm":total,"coordinate_unit":"mm",
-            "warnings":warnings,"measurement_tolerance_mm":tolerance_mm}
+            "warnings":warnings,"measurement_tolerance_mm":tolerance_mm,
+            "coverage_complete":len(warnings)==0,
+            "coverage_status":"complete" if not warnings else "partial",
+            "warning_count":len(warnings),"warning_element_types":warning_types,
+            "measured_element_count":len(results)}
