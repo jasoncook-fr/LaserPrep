@@ -2,7 +2,7 @@
 from __future__ import annotations
 import re
 
-TOKEN = re.compile(r"[MmLlHhVvZzCcSsQqTt]|[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?")
+TOKEN = re.compile(r"[MmLlHhVvZzCcSsQqTt]|[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)
 COMMANDS = set("MmLlHhVvZzCcSsQqTt")
 
 
