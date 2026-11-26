@@ -83,3 +83,8 @@ The coverage scan skips XML comments and known structural, styling, animation, g
 ### Geometry profile — segment statistics
 
 The geometry analyzer now reports segment counts per measured element and aggregated counts for line, quadratic Bézier, cubic Bézier, arc, transformed arc, and other segment types. Counts are descriptive geometric features only and do not imply laser operation classification or runtime.
+
+
+### Geometry profile — topology/connectivity metrics
+
+Each measured element now includes conservative segment-chain topology metrics in normalized millimetres: continuity, closed/open status, gap count, estimated subpath count, and first/last chain endpoints. Discontinuities are evaluated between consecutive extracted segments using the analysis tolerance. These are chain-level estimates, not a full SVG path topology reconstruction (e.g. they do not distinguish explicit moveto commands if segment endpoints happen to connect).
