@@ -93,3 +93,8 @@ Each measured element now includes conservative segment-chain topology metrics i
 ### Geometry profile — bounding boxes and spatial extent
 
 Measured elements now expose axis-aligned bounds in normalized millimetres (min/max coordinates, width, height and bounding-box area), with document-level aggregate bounds across measured geometry. Bézier bounds use their control points (conservative bounds rather than tight curve extrema). Elliptical arcs are sampled for bounds, including transformed arcs; arc bounds are approximate and sample-based. Bounding-box area is a spatial footprint feature, not actual filled area or material consumption.
+
+
+### Stage 10 — aggregated geometry profile
+
+`geometry_profile.build_geometry_profile()` converts measurement output into a higher-level descriptive workload profile: total and categorized segment length, element and segment counts, closed/open element counts, short-segment indicators, average segment/element lengths, and average element/document bounding-box characteristics. It propagates coverage status. These features are descriptive only; no laser-operation classification or runtime model is implied. The short-segment threshold is configurable (default 1 mm).
