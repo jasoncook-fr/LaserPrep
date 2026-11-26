@@ -40,4 +40,4 @@ def test_affine_transformed_arc_length():
     arc={"type":"arc","start":(1,0),"rx":1,"ry":1,"rotation":0,"large_arc":0,"sweep":1,"end":(0,1)}
     transformed=transform_segment(Matrix(a=2,d=1),arc)
     assert transformed["type"]=="transformed_arc"
-    assert math.isclose(segment_length(transformed),math.pi*1.5,rel_tol=1e-5)
+    assert math.isclose(segment_length(transformed),2.422112055,rel_tol=1e-5)
