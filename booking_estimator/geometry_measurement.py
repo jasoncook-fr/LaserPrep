@@ -92,7 +92,8 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
                 segment_counts[kind]+=1
             results.append({"source_id":rec.source_id,"source_element":rec.source_element,
               "element_type":rec.element_type,"style":dict(rec.style),"segments":normalized,
-              "coordinate_unit":"mm","length_mm":length,"segment_count":len(normalized),\n              "segment_type_counts":counts})
+              "coordinate_unit":"mm","length_mm":length,"segment_count":len(normalized),
+              "segment_type_counts":counts})
             total+=length
         except Exception as exc:
             warnings.append({"source_id":rec.source_id,"element_type":rec.element_type,
@@ -109,4 +110,6 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
             "coverage_complete":len(warnings)==0,
             "coverage_status":"complete" if not warnings else "partial",
             "warning_count":len(warnings),"warning_element_types":warning_types,
-            "measured_element_count":len(results),\n            "total_segment_count":sum(segment_counts.values()),\n            "segment_type_counts":segment_counts}
+            "measured_element_count":len(results),
+            "total_segment_count":sum(segment_counts.values()),
+            "segment_type_counts":segment_counts}
