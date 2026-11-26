@@ -125,6 +125,8 @@ def extract_basic_shapes(svg_source: str) -> list[GeometryRecord]:
             # Unsupported elements are ignored at this stage.
             pass
 
+        if tag in {"defs", "symbol", "clipPath", "mask"}:
+            return
         for child in node:
             walk(child, matrix, style)
 
