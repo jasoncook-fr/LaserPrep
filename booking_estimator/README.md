@@ -22,3 +22,8 @@ Run tests from the repository root:
 ```bash
 python -m pytest -q booking_estimator/tests
 ```
+
+
+## Segment length measurement (Stage 8, partial)
+
+The `lengths` module measures line segments exactly and quadratic/cubic Bézier curves numerically using adaptive Simpson integration of the parametric speed. `path_length()` sums supported segments. Elliptical arc measurement is deliberately deferred to a subsequent increment. Results remain in the coordinate units of the parsed segments (conversion to millimetres comes later).
