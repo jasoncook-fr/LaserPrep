@@ -85,7 +85,7 @@ def segment_length(segment, tolerance=1e-8):
         rx, ry, theta1, delta = params
         def arc_speed(theta):
             return math.hypot(rx*math.sin(theta), ry*math.cos(theta))
-        return _adaptive_simpson(arc_speed, theta1, theta1+delta, tolerance)
+        return abs(_adaptive_simpson(arc_speed, theta1, theta1+delta, tolerance))
     if kind not in ("quadratic", "cubic"):
         raise ValueError(f"Unknown segment type: {kind!r}")
 
