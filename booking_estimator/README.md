@@ -78,3 +78,8 @@ The analyzer returns `coverage_complete`, `coverage_status` (complete/partial), 
 ### Stage 9.7 — coverage scan hardening
 
 The coverage scan skips XML comments and known structural, styling, animation, gradient, filter, and other non-drawing SVG nodes. Unknown SVG element names remain conservative warnings. Duplicate warning entries are removed by element ID/type/message signature. This improves warning signal quality but is not a complete SVG renderer or a guarantee that all visible/cut geometry is accounted for.
+
+
+### Geometry profile — segment statistics
+
+The geometry analyzer now reports segment counts per measured element and aggregated counts for line, quadratic Bézier, cubic Bézier, arc, transformed arc, and other segment types. Counts are descriptive geometric features only and do not imply laser operation classification or runtime.
