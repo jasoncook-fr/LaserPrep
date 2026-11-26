@@ -10,7 +10,7 @@ from .geometry_pipeline import transform_segments
 from .primitive_extractor import extract_basic_shapes
 from .primitive_to_segments import primitive_to_segments
 from .viewport import viewbox_to_viewport_matrix
-from .lengths import path_length
+from .lengths import path_length, _arc_parameters
 
 SUPPORTED = {"rect", "circle", "ellipse", "line", "polyline", "polygon", "path"}
 CONTAINER = {"svg", "g", "defs", "symbol", "clipPath", "mask", "metadata", "title", "desc"}
@@ -126,11 +126,11 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
                 if kind not in counts: kind="other"
                 counts[kind]+=1
                 segment_counts[kind]+=1
-            topology=_topology(normalized,tolerance_mm)
+            topology=_topology(normalized,tolerance_mm)\n            bounds=_bounds(normalized)
             results.append({"source_id":rec.source_id,"source_element":rec.source_element,
               "element_type":rec.element_type,"style":dict(rec.style),"segments":normalized,
               "coordinate_unit":"mm","length_mm":length,"segment_count":len(normalized),
-              "segment_type_counts":counts,**topology})
+              "segment_type_counts":counts,**topology,**(bounds or {})})
             total+=length
         except Exception as exc:
             warnings.append({"source_id":rec.source_id,"element_type":rec.element_type,
