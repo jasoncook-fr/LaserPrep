@@ -46,10 +46,34 @@ def test_path_length_sum():
     assert path_length(segments) == 10
 
 
-def test_arc_deferred():
-    seg = {"type": "arc", "start": (0, 0), "rx": 1, "ry": 1, "rotation": 0, "large_arc": 0, "sweep": 1, "end": (1, 1)}
-    with pytest.raises(NotImplementedError):
-        segment_length(seg)
+def test_quarter_circle_arc():
+    seg = {"type": "arc", "start": (1, 0), "rx": 1, "ry": 1, "rotation": 0, "large_arc": 0, "sweep": 1, "end": (0, 1)}
+    assert segment_length(seg) == pytest.approx(math.pi/2, rel=1e-7)
+
+
+def test_semicircle_arc():
+    seg = {"type": "arc", "start": (1, 0), "rx": 1, "ry": 1, "rotation": 0, "large_arc": 0, "sweep": 1, "end": (-1, 0)}
+    assert segment_length(seg) == pytest.approx(math.pi, rel=1e-7)
+
+
+def test_elliptical_arc():
+    seg = {"type": "arc", "start": (2, 0), "rx": 2, "ry": 1, "rotation": 0, "large_arc": 0, "sweep": 1, "end": (0, 1)}
+    assert segment_length(seg) > 2.0 and segment_length(seg) < 4.0
+
+
+def test_arc_radii_correction():
+    seg = {"type": "arc", "start": (0, 0), "rx": 1, "ry": 1, "rotation": 0, "large_arc": 0, "sweep": 1, "end": (4, 0)}
+    assert segment_length(seg) == pytest.approx(4.0)
+
+
+def test_arc_zero_radius_is_line():
+    seg = {"type": "arc", "start": (0, 0), "rx": 0, "ry": 5, "rotation": 0, "large_arc": 0, "sweep": 1, "end": (3, 4)}
+    assert segment_length(seg) == 5.0
+
+
+def test_arc_coincident_endpoints_is_zero():
+    seg = {"type": "arc", "start": (1, 1), "rx": 5, "ry": 3, "rotation": 0, "large_arc": 1, "sweep": 1, "end": (1, 1)}
+    assert segment_length(seg) == 0.0
 
 
 def test_unknown_segment():
