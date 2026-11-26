@@ -32,13 +32,9 @@ def normalize_svg_paths(svg_source: str) -> list[dict[str, object]]:
             viewbox, width, height, root.attrib.get("preserveAspectRatio")
         )
     else:
-        sx = parse_length_mm(width) / float(parse_length_mm(width))
-        sy = parse_length_mm(height) / float(parse_length_mm(height))
-        # No viewBox: CSS user coordinates are normally px; root dimensions
-        # define the physical viewport but user coordinate scale is CSS px/mm.
-        from .svg_units import _unit_scale_mm_per_user_unit
-        viewport = Matrix(a=_unit_scale_mm_per_user_unit(width),
-                         d=_unit_scale_mm_per_user_unit(height))
+        # SVG user coordinates default to CSS px when no viewBox is present.
+        # Physical viewport dimensions do not change the px-to-mm user-unit scale.
+        viewport = Matrix(a=25.4 / 96.0, d=25.4 / 96.0)
 
     records = []
     for record in extract_basic_shapes(svg_source):
