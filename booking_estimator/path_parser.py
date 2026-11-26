@@ -2,7 +2,7 @@
 from __future__ import annotations
 import re
 
-TOKEN = re.compile(r"[MmLlHhVvZz]|[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?")
+TOKEN = re.compile(r"[MmLlHhVvZz]|[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?")
 COMMANDS = set("MmLlHhVvZz")
 
 def parse_path_data(data: str) -> list[dict[str, object]]:
@@ -16,7 +16,7 @@ def parse_path_data(data: str) -> list[dict[str, object]]:
         raise ValueError("Invalid SVG path data")
     # Ensure no unrecognized text is silently skipped.
     cleaned = TOKEN.sub("", data)
-    if cleaned.strip(" ,\\t\\r\\n"):
+    if cleaned.strip(" ,\t\r\n"):
         raise ValueError(f"Unsupported or invalid path syntax: {cleaned!r}")
     segments: list[dict[str, object]] = []
     i = 0; cmd = None; current=(0.0,0.0); substart=None
