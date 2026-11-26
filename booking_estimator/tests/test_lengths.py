@@ -51,6 +51,11 @@ def test_quarter_circle_arc():
     assert segment_length(seg) == pytest.approx(math.pi/2, rel=1e-7)
 
 
+def test_quarter_circle_reverse_sweep():
+    seg = {"type": "arc", "start": (1, 0), "rx": 1, "ry": 1, "rotation": 0, "large_arc": 0, "sweep": 0, "end": (0, 1)}
+    assert segment_length(seg) == pytest.approx(math.pi/2, rel=1e-7)
+
+
 def test_semicircle_arc():
     seg = {"type": "arc", "start": (1, 0), "rx": 1, "ry": 1, "rotation": 0, "large_arc": 0, "sweep": 1, "end": (-1, 0)}
     assert segment_length(seg) == pytest.approx(math.pi, rel=1e-7)
