@@ -99,3 +99,16 @@ def test_unknown_element_is_reported_without_crashing():
     result=analyze_svg_geometry(svg)
     assert result["coverage_status"] == "partial"
     assert any(w["source_id"] == "x" for w in result["warnings"])
+
+
+
+def test_segment_statistics_for_mixed_geometry():
+    svg='<svg width="20mm" height="20mm" viewBox="0 0 20 20"><rect width="2" height="2"/><path d="M0 0 Q1 2 2 0 C3 0 4 1 5 1"/><circle cx="5" cy="5" r="1"/></svg>'
+    result=analyze_svg_geometry(svg)
+    assert result["total_segment_count"] == sum(result["segment_type_counts"].values())
+    assert result["segment_type_counts"]["line"] == 4
+    assert result["segment_type_counts"]["quadratic"] == 1
+    assert result["segment_type_counts"]["cubic"] == 1
+    assert result["segment_type_counts"]["arc"] == 4
+    assert result["measured_element_count"] == 3
+    assert all(e["segment_count"] == sum(e["segment_type_counts"].values()) for e in result["elements"])
