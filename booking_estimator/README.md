@@ -32,3 +32,14 @@ The `lengths` module measures line segments exactly and quadratic/cubic Bézier 
 ## Geometry transformation pipeline (Stage 9.1)
 
 The `geometry_pipeline` module provides affine vector transformation, matrix determinant and inverse, and transformed line, quadratic, and cubic Bézier records. Elliptical arcs are preserved in an explicit transformed-arc wrapper rather than rewritten into potentially incorrect ellipse parameters under arbitrary affine transforms. SVG hierarchy integration and millimetre normalization remain subsequent stages.
+
+
+
+## SVG hierarchy transform integration (Stage 9.2)
+
+The `svg_transform_integration` module exposes `extract_transformed_paths()`.
+It extracts SVG path records and applies the composed transforms inherited from
+nested groups and path elements to line and Bézier segments. Arc records are
+retained as explicit transformed-arc wrappers. Styles and source IDs remain
+available. Primitive conversion, root viewport/viewBox normalization, and
+millimetre conversion are still separate stages.
