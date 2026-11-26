@@ -27,3 +27,8 @@ python -m pytest -q booking_estimator/tests
 ## Segment length measurement (Stage 8, partial)
 
 The `lengths` module measures line segments exactly and quadratic/cubic Bézier curves and elliptical arcs numerically using adaptive Simpson integration of parametric speed. SVG elliptical arcs are converted from endpoint form to center/angular form, including radii correction. `path_length()` sums supported segments. Results remain in the coordinate units of the parsed segments (conversion to millimetres comes later).
+
+
+## Geometry transformation pipeline (Stage 9.1)
+
+The `geometry_pipeline` module provides affine vector transformation, matrix determinant and inverse, and transformed line and quadratic Bézier records. Cubic support is planned in the next refinement. Elliptical arcs are preserved in an explicit transformed-arc wrapper rather than rewritten into potentially incorrect ellipse parameters under arbitrary affine transforms. SVG hierarchy integration and millimetre normalization remain subsequent stages.
