@@ -9,7 +9,7 @@ An isolated experimental package for SVG analysis and future laser-runtime predi
 - **Stage 3:** primitive extraction, group transforms, and inherited styles.
 - **Stage 4:** SVG path data parsing for absolute and relative M/L/H/V/Z, cubic Bézier C/S, and quadratic Bézier Q/T commands, including smooth-control reflection, and elliptical arc A/a commands.
 
-Path parsing produces line, cubic, and quadratic Bézier segment records in SVG user coordinates. Elliptical arcs are represented as arc records with radii, rotation, flags, and endpoints; arc-length measurement and conversion remain deferred. This stage does not yet calculate path length, bounds, normalize units, or classify laser operations.
+Path parsing produces line, cubic, quadratic Bézier, and elliptical arc segment records in SVG user coordinates. Length measurement is implemented for all four segment types. Geometry bounds, millimetre normalization, and laser-operation classification remain future work.
 
 The geometry foundation deliberately keeps extraction, normalization, measurement, and classification separate. Transform-list parsing currently supports matrix, translate, scale, rotate (including a center), skewX, and skewY. Coordinates in future geometry analysis are intended to be normalized to millimetres.
 
@@ -26,4 +26,4 @@ python -m pytest -q booking_estimator/tests
 
 ## Segment length measurement (Stage 8, partial)
 
-The `lengths` module measures line segments exactly and quadratic/cubic Bézier curves numerically using adaptive Simpson integration of the parametric speed. `path_length()` sums supported segments. Elliptical arc measurement is deliberately deferred to a subsequent increment. Results remain in the coordinate units of the parsed segments (conversion to millimetres comes later).
+The `lengths` module measures line segments exactly and quadratic/cubic Bézier curves and elliptical arcs numerically using adaptive Simpson integration of parametric speed. SVG elliptical arcs are converted from endpoint form to center/angular form, including radii correction. `path_length()` sums supported segments. Results remain in the coordinate units of the parsed segments (conversion to millimetres comes later).
