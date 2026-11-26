@@ -85,3 +85,17 @@ def test_nonpositive_tolerance_rejected():
     import pytest
     with pytest.raises(ValueError, match="tolerance_mm must be positive"):
         analyze_svg_geometry('<svg width="10mm" height="10mm"/>', tolerance_mm=0)
+
+
+def test_non_drawing_svg_structural_elements_do_not_trigger_coverage_warning():
+    svg='<svg width="10mm" height="10mm" viewBox="0 0 10 10"><!-- comment --><defs><linearGradient id="g"><stop offset="0"/></linearGradient></defs><style>.x{fill:red}</style><rect class="x" width="2" height="2"/></svg>'
+    result=analyze_svg_geometry(svg)
+    assert result["coverage_status"] == "complete"
+    assert result["warnings"] == []
+
+
+def test_unknown_element_is_reported_without_crashing():
+    svg='<svg width="10mm" height="10mm" viewBox="0 0 10 10"><customthing id="x"/></svg>'
+    result=analyze_svg_geometry(svg)
+    assert result["coverage_status"] == "partial"
+    assert any(w["source_id"] == "x" for w in result["warnings"])
