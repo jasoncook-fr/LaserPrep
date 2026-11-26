@@ -49,6 +49,7 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
     viewport=(viewbox_to_viewport_matrix(vb,width,height,root.attrib.get("preserveAspectRatio"))
               if vb else Matrix(a=25.4/96.0,d=25.4/96.0))
     results=[]; warnings=[]; total=0.0
+    segment_counts={"line":0,"quadratic":0,"cubic":0,"arc":0,"transformed_arc":0,"other":0}
     # Collect explicit unsupported drawable nodes and track definition subtrees.
     def scan(node, inherited, in_defs=False):
         if not isinstance(node.tag, str):
@@ -83,9 +84,15 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
             matrix=viewport.compose(rec.transform)
             normalized=transform_segments(matrix,segments)
             length=path_length(normalized,tolerance=tolerance_mm)
+            counts={key:0 for key in segment_counts}
+            for segment in normalized:
+                kind=segment.get("type","other")
+                if kind not in counts: kind="other"
+                counts[kind]+=1
+                segment_counts[kind]+=1
             results.append({"source_id":rec.source_id,"source_element":rec.source_element,
               "element_type":rec.element_type,"style":dict(rec.style),"segments":normalized,
-              "coordinate_unit":"mm","length_mm":length})
+              "coordinate_unit":"mm","length_mm":length,"segment_count":len(normalized),\n              "segment_type_counts":counts})
             total+=length
         except Exception as exc:
             warnings.append({"source_id":rec.source_id,"element_type":rec.element_type,
@@ -102,4 +109,4 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
             "coverage_complete":len(warnings)==0,
             "coverage_status":"complete" if not warnings else "partial",
             "warning_count":len(warnings),"warning_element_types":warning_types,
-            "measured_element_count":len(results)}
+            "measured_element_count":len(results),\n            "total_segment_count":sum(segment_counts.values()),\n            "segment_type_counts":segment_counts}
