@@ -17,7 +17,7 @@ def parse_path_data(data: str) -> list[dict[str, object]]:
     if not tokens:
         raise ValueError("SVG path data must not be empty")
     cleaned = TOKEN.sub("", data)
-    if cleaned.strip(" ,\\t\\r\\n"):
+    if cleaned.strip(" ,\t\r\n"):
         raise ValueError(f"Unsupported or invalid path syntax: {cleaned!r}")
 
     segments: list[dict[str, object]] = []
