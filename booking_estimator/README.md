@@ -98,3 +98,8 @@ Measured elements now expose axis-aligned bounds in normalized millimetres (min/
 ### Stage 10 — aggregated geometry profile
 
 `geometry_profile.build_geometry_profile()` converts measurement output into a higher-level descriptive workload profile: total and categorized segment length, element and segment counts, closed/open element counts, short-segment indicators, average segment/element lengths, and average element/document bounding-box characteristics. It propagates coverage status. These features are descriptive only; no laser-operation classification or runtime model is implied. The short-segment threshold is configurable (default 1 mm).
+
+
+### Stage 11 — geometric complexity indicators
+
+The `geometry_complexity` module analyzes connected consecutive-segment transitions and reports turning-angle distribution, mean/median/maximum and accumulated angle, configurable sharp-turn counts, and a turn-density indicator per metre. Transitions across gaps larger than tolerance are excluded. Arc endpoint tangent estimates are sample-based. These metrics describe geometric direction changes only and are not machine-motion or runtime predictions.
