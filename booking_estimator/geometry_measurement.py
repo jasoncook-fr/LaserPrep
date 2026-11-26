@@ -1,6 +1,9 @@
 """Unified normalized SVG geometry extraction and measurement in millimetres."""
 from __future__ import annotations
+import math
 import xml.etree.ElementTree as ET
+
+from .geometry import Point
 
 from .geometry import Matrix
 from .geometry_pipeline import transform_segments
@@ -13,6 +16,39 @@ SUPPORTED = {"rect", "circle", "ellipse", "line", "polyline", "polygon", "path"}
 CONTAINER = {"svg", "g", "defs", "symbol", "clipPath", "mask", "metadata", "title", "desc"}
 NON_DRAWING = {"style", "script", "linearGradient", "radialGradient", "stop", "pattern", "marker", "filter", "feGaussianBlur", "feColorMatrix", "feBlend", "feOffset", "feFlood", "feComposite", "feMerge", "feMergeNode", "animate", "animateTransform", "animateMotion", "set"}
 
+
+
+
+def _segment_endpoints(segment):
+    """Return normalized-mm start/end points, including transformed arcs."""
+    kind=segment.get("type")
+    if kind == "transformed_arc":
+        original=segment["segment"]; matrix=segment["matrix"]
+        start=matrix.apply(Point(*original["start"]))
+        end=matrix.apply(Point(*original["end"]))
+        return (start.x,start.y),(end.x,end.y)
+    if kind in {"line","arc","quadratic","cubic"}:
+        return tuple(segment["start"]),tuple(segment["end"])
+    return None
+
+
+def _topology(segments, tolerance):
+    """Estimate segment-chain connectivity and closure in normalized mm."""
+    endpoints=[_segment_endpoints(s) for s in segments]
+    endpoints=[p for p in endpoints if p is not None]
+    if not endpoints:
+        return {"is_continuous":True,"is_closed":False,"subpath_count":0,
+                "gap_count":0,"start_point_mm":None,"end_point_mm":None}
+    gaps=sum(math.hypot(endpoints[i][1][0]-endpoints[i+1][0][0],
+                        endpoints[i][1][1]-endpoints[i+1][0][1]) > tolerance
+              for i in range(len(endpoints)-1))
+    first,last=endpoints[0][0],endpoints[-1][1]
+    closure_gap=math.hypot(first[0]-last[0],first[1]-last[1])
+    continuous=gaps==0
+    closed=continuous and closure_gap<=tolerance
+    return {"is_continuous":continuous,"is_closed":closed,
+            "subpath_count":gaps+1,"gap_count":gaps,
+            "start_point_mm":first,"end_point_mm":last}
 
 def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
@@ -90,10 +126,11 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
                 if kind not in counts: kind="other"
                 counts[kind]+=1
                 segment_counts[kind]+=1
+            topology=_topology(normalized,tolerance_mm)
             results.append({"source_id":rec.source_id,"source_element":rec.source_element,
               "element_type":rec.element_type,"style":dict(rec.style),"segments":normalized,
               "coordinate_unit":"mm","length_mm":length,"segment_count":len(normalized),
-              "segment_type_counts":counts})
+              "segment_type_counts":counts,**topology})
             total+=length
         except Exception as exc:
             warnings.append({"source_id":rec.source_id,"element_type":rec.element_type,
