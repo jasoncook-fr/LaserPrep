@@ -10,9 +10,9 @@ import re
 import xml.etree.ElementTree as ET
 
 from .geometry import GeometryRecord, Matrix
-from .transforms import parse_transform_list
+from .transforms import parse_transform_list\nfrom .path_parser import parse_path_data
 
-SUPPORTED = {"rect", "circle", "ellipse", "line", "polyline", "polygon"}
+SUPPORTED = {"rect", "circle", "ellipse", "line", "polyline", "polygon", "path"}
 STYLE_KEYS = {"fill", "stroke", "stroke-width", "opacity", "fill-opacity",
               "stroke-opacity", "stroke-linecap", "stroke-linejoin",
               "stroke-dasharray", "visibility", "display"}
@@ -67,7 +67,7 @@ def _parse_points(text: str) -> list[tuple[float, float]]:
     return [(vals[i], vals[i+1]) for i in range(0, len(vals), 2)]
 
 
-def _shape_payload(tag: str, attrs: dict[str, str]) -> dict[str, object]:
+def _shape_payload(tag: str, attrs: dict[str, str]) -> dict[str, object]:\n    if tag == "path":\n        return {"segments": parse_path_data(attrs.get("d", ""))}
     if tag == "rect":
         payload = {k: _number(attrs.get(k)) for k in ("x", "y", "width", "height")}
         payload["rx"] = _number(attrs.get("rx"), _number(attrs.get("ry"))) if attrs.get("rx") is not None else _number(attrs.get("ry"))
