@@ -9,14 +9,34 @@ from .primitive_to_segments import primitive_to_segments
 from .viewport import viewbox_to_viewport_matrix
 from .lengths import path_length
 
+SUPPORTED = {"rect", "circle", "ellipse", "line", "polyline", "polygon", "path"}
+CONTAINER = {"svg", "g", "defs", "symbol", "clipPath", "mask", "metadata", "title", "desc"}
+
+
+def _local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def _style(node: ET.Element, inherited: dict[str, str]) -> dict[str, str]:
+    style = dict(inherited)
+    for key in ("display", "visibility"):
+        if key in node.attrib:
+            style[key] = node.attrib[key]
+    for part in node.attrib.get("style", "").split(";"):
+        if ":" in part:
+            key, value = part.split(":", 1)
+            key = key.strip()
+            if key in ("display", "visibility"):
+                style[key] = value.strip()
+    return style
+
 
 def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
-    """Normalize all supported SVG shapes and return element and aggregate lengths.
+    """Normalize supported SVG shapes and report measurement and coverage warnings.
 
-    Unsupported/failed elements are reported, never silently treated as measured.
-    Coordinates and lengths are millimetres. Text/images and definitions are not
-    measured; arbitrary path primitives outside the supported extractor scope are
-    omitted with warnings where identifiable.
+    Hidden geometry is excluded. Unsupported drawable elements and drawable
+    elements inside definitions are reported as coverage warnings. Lengths are
+    geometric centerline/perimeter lengths, not laser-operation predictions.
     """
     root=ET.fromstring(svg_source)
     width,height=root.attrib.get("width"),root.attrib.get("height")
@@ -26,12 +46,34 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
     viewport=(viewbox_to_viewport_matrix(vb,width,height,root.attrib.get("preserveAspectRatio"))
               if vb else Matrix(a=25.4/96.0,d=25.4/96.0))
     results=[]; warnings=[]; total=0.0
+    # Collect explicit unsupported drawable nodes and track definition subtrees.
+    def scan(node, inherited, in_defs=False):
+        tag=_local(node.tag); st=_style(node,inherited)
+        hidden=(st.get("display", "").strip().lower()=="none" or
+                st.get("visibility", "").strip().lower() in {"hidden", "collapse"})
+        in_defs = in_defs or tag in {"defs", "symbol", "clipPath", "mask"}
+        if hidden:
+            return
+        if tag not in SUPPORTED and tag not in CONTAINER and tag not in {"text", "image", "use", "foreignObject"}:
+            warnings.append({"source_id":node.attrib.get("id"),"element_type":tag,
+                            "message":"Unsupported drawable or SVG element; not measured"})
+        elif tag in {"text", "image", "use", "foreignObject"}:
+            warnings.append({"source_id":node.attrib.get("id"),"element_type":tag,
+                            "message":"Element is not measured by this analyzer"})
+        if in_defs and tag in SUPPORTED:
+            warnings.append({"source_id":node.attrib.get("id"),"element_type":tag,
+                            "message":"Geometry inside definitions is not instantiated or measured"})
+        for child in node:
+            scan(child,st,in_defs)
+    scan(root,{})
     try:
         records=extract_basic_shapes(svg_source)
     except Exception as exc:
         raise ValueError(f"SVG extraction failed: {exc}") from exc
     for rec in records:
         try:
+            if rec.style.get("display", "").strip().lower()=="none" or rec.style.get("visibility", "").strip().lower() in {"hidden", "collapse"}:
+                continue
             segments=primitive_to_segments(rec.element_type,rec.payload)
             matrix=viewport.compose(rec.transform)
             normalized=transform_segments(matrix,segments)
