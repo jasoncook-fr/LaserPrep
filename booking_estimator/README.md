@@ -6,6 +6,7 @@ An isolated experimental package for SVG analysis and future laser-runtime predi
 
 - **Stage 1:** root SVG physical-dimension parsing and viewBox scale resolution.
 - **Stage 2:** geometry records, points, bounding boxes, affine matrix composition, and SVG transform-list parsing.
+- **Stage 3 (initial):** extraction of rect, circle, ellipse, line, polyline and polygon primitives, with nested group transforms and basic inherited styles.
 
 The geometry foundation deliberately does not yet extract SVG elements or measure paths. Transform-list parsing currently supports `matrix`, `translate`, `scale`, `rotate` (including a center), `skewX`, and `skewY`, with argument validation and composition. Coordinates in future geometry analysis are intended to be normalized to millimetres. SVG matrix composition is defined so that `self.compose(other)` applies `other` first, then `self`.
 
