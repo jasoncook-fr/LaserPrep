@@ -64,6 +64,6 @@ def test_bad_xml_rejected():
         extract_basic_shapes("<svg><rect></svg>")
 
 
-def test_path_is_not_yet_extracted():
+def test_initial_path_extraction():
     svg = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L1 1"/><rect width="1" height="1"/></svg>'
-    assert [r.element_type for r in extract_basic_shapes(svg)] == ["rect"]
+    records = extract_basic_shapes(svg)\n    assert [r.element_type for r in records] == ["path", "rect"]\n    assert records[0].payload["segments"][0]["end"] == (1.0, 1.0)
