@@ -58,3 +58,8 @@ The `svg_normalization` module provides `normalize_svg_paths()`, requiring physi
 ## Unified geometry analysis (Stage 9.5, initial implementation)
 
 The `geometry_measurement` module exposes `analyze_svg_geometry()`, converting supported paths and SVG primitives into normalized millimetre segment geometry and reporting per-element plus total lengths. Primitive conversion supports rect (including rounded rects), circle, ellipse, line, polyline and polygon. Elliptical arcs are measured numerically, including arcs transformed by arbitrary affine matrices, using adaptive Simpson integration of transformed parametric speed. Output retains IDs, source element/type and styles, and includes a warning list for elements that fail processing. This remains an experimental geometric perimeter/line-length analysis, not yet laser runtime prediction or operation classification.
+
+
+## Geometry validation and coverage (Stage 9.6, initial)
+
+The unified analyzer now excludes elements and groups marked `display:none` or hidden/collapsed visibility, avoids measuring geometry inside SVG definitions (`defs`, `symbol`, clipping paths, masks), and reports explicit coverage warnings for unmeasured text, images, references (`use`), foreign objects, and unsupported drawable tags. These warnings are intended to prevent partial geometry results from being mistaken for complete file analysis. SVG unit-bearing primitive attributes and broader reference/definition resolution remain future work.
