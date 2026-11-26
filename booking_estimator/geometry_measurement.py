@@ -126,7 +126,8 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
                 if kind not in counts: kind="other"
                 counts[kind]+=1
                 segment_counts[kind]+=1
-            topology=_topology(normalized,tolerance_mm)\n            bounds=_bounds(normalized)
+            topology=_topology(normalized,tolerance_mm)
+            bounds=_bounds(normalized)
             results.append({"source_id":rec.source_id,"source_element":rec.source_element,
               "element_type":rec.element_type,"style":dict(rec.style),"segments":normalized,
               "coordinate_unit":"mm","length_mm":length,"segment_count":len(normalized),
