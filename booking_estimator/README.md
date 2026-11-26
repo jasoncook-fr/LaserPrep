@@ -88,3 +88,8 @@ The geometry analyzer now reports segment counts per measured element and aggreg
 ### Geometry profile — topology/connectivity metrics
 
 Each measured element now includes conservative segment-chain topology metrics in normalized millimetres: continuity, closed/open status, gap count, estimated subpath count, and first/last chain endpoints. Discontinuities are evaluated between consecutive extracted segments using the analysis tolerance. These are chain-level estimates, not a full SVG path topology reconstruction (e.g. they do not distinguish explicit moveto commands if segment endpoints happen to connect).
+
+
+### Geometry profile — bounding boxes and spatial extent
+
+Measured elements now expose axis-aligned bounds in normalized millimetres (min/max coordinates, width, height and bounding-box area), with document-level aggregate bounds across measured geometry. Bézier bounds use their control points (conservative bounds rather than tight curve extrema). Elliptical arcs are sampled for bounds, including transformed arcs; arc bounds are approximate and sample-based. Bounding-box area is a spatial footprint feature, not actual filled area or material consumption.
