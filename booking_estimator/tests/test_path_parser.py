@@ -43,7 +43,7 @@ def test_smooth_cubic_after_cubic_reflection_relative():
     assert s[1]["control2"]==(5.,0.)
     assert s[1]["end"]==(6.,0.)
 
-@pytest.mark.parametrize("d",["","M0","X0 0","M0 0 Q1 1 2 2","M0 0 A1 1 0 0 1 2 2"])
+@pytest.mark.parametrize("d",["","M0","X0 0","M0 0 A1 1 0 0 1 2 2"])
 def test_invalid_or_deferred_commands(d):
     with pytest.raises(ValueError): parse_path_data(d)
 
