@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 from .geometry import GeometryRecord, Matrix
 from .transforms import parse_transform_list
 from .path_parser import parse_path_data
+from .svg_units import _MM_PER_UNIT
 
 SUPPORTED = {"rect", "circle", "ellipse", "line", "polyline", "polygon", "path"}
 STYLE_KEYS = {"fill", "stroke", "stroke-width", "opacity", "fill-opacity",
@@ -26,15 +27,26 @@ def _local(tag: str) -> str:
 
 
 def _number(value: str | None, default: float = 0.0) -> float:
+    """Parse primitive SVG lengths into user units (CSS px for absolute units).
+
+    Unitless values remain SVG user units. Absolute units are converted to
+    equivalent CSS px user units. Percentage and font-relative units are
+    deliberately unsupported here.
+    """
     if value is None:
         return default
-    match = _NUM.match(value.strip())
-    if not match or match.end() != len(value.strip()):
+    raw=value.strip()
+    match=_NUM.match(raw)
+    if not match:
         raise ValueError(f"Invalid primitive numeric value: {value!r}")
-    result = float(value)
-    if not math.isfinite(result):
+    number=float(match.group(0)); unit=raw[match.end():].strip().lower()
+    if not math.isfinite(number):
         raise ValueError("SVG geometry values must be finite")
-    return result
+    if not unit:
+        return number
+    if unit not in _MM_PER_UNIT:
+        raise ValueError(f"Unsupported SVG geometry unit: {unit!r}")
+    return number*_MM_PER_UNIT[unit]/_MM_PER_UNIT["px"]
 
 
 def _parse_style(element: ET.Element, inherited: dict[str, str]) -> dict[str, str]:
