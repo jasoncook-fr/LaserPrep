@@ -48,3 +48,8 @@ millimetre conversion are still separate stages.
 ## SVG viewport normalization (Stage 9.3)
 
 The `viewport` module maps SVG viewBox coordinates into physical viewport millimetres and implements `preserveAspectRatio`: `none`, all nine alignment positions, and `meet`/`slice` (including the default xMidYMid meet and optional defer token). This mapping is an explicit matrix; integration into full geometry processing and unit conversion follows in Stage 9.4.
+
+
+## Physical path normalization (Stage 9.4)
+
+The `svg_normalization` module provides `normalize_svg_paths()`, requiring physical root dimensions and mapping extracted path geometry to millimetre coordinates using the root viewBox/preserveAspectRatio mapping and element/group transforms. It returns source/style metadata and explicitly labels the output coordinate unit as mm. Primitive shape conversion and full transformed-arc length treatment remain pending.
