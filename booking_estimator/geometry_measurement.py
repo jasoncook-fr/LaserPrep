@@ -19,6 +19,56 @@ NON_DRAWING = {"style", "script", "linearGradient", "radialGradient", "stop", "p
 
 
 
+
+
+def _arc_points(segment, samples=256):
+    """Sample an SVG endpoint-form elliptical arc for conservative bounds."""
+    params = _arc_parameters(segment)
+    if params is None:
+        return [tuple(segment["start"]), tuple(segment["end"])]
+    rx, ry, theta1, delta = params
+    x1, y1 = segment["start"]
+    x2, y2 = segment["end"]
+    phi = math.radians(float(segment["rotation"]))
+    cp, sp = math.cos(phi), math.sin(phi)
+    dx, dy = (x1-x2)/2.0, (y1-y2)/2.0
+    xp, yp = cp*dx+sp*dy, -sp*dx+cp*dy
+    lam = xp*xp/(rx*rx)+yp*yp/(ry*ry)
+    factor = math.sqrt(max(0.0, (rx*rx*ry*ry-rx*rx*yp*yp-ry*ry*xp*xp)/(rx*rx*yp*yp+ry*ry*xp*xp))) if lam <= 1.0 else 0.0
+    if int(segment["large_arc"]) == int(segment["sweep"]): factor = -factor
+    cxp, cyp = factor*(rx*yp/ry), factor*(-ry*xp/rx)
+    cx = cp*cxp-sp*cyp+(x1+x2)/2.0
+    cy = sp*cxp+cp*cyp+(y1+y2)/2.0
+    return [(cx+cp*rx*math.cos(theta)-sp*ry*math.sin(theta),
+             cy+sp*rx*math.cos(theta)+cp*ry*math.sin(theta))
+            for theta in (theta1+delta*i/samples for i in range(samples+1))]
+
+
+def _bounds(segments):
+    """Return conservative sampled bounds in normalized mm for segment records."""
+    points=[]
+    for segment in segments:
+        kind=segment.get("type")
+        if kind == "transformed_arc":
+            original=segment["segment"]
+            matrix=segment["matrix"]
+            points.extend((matrix.apply(Point(x,y)).x, matrix.apply(Point(x,y)).y)
+                          for x,y in _arc_points(original))
+        elif kind == "arc":
+            points.extend(_arc_points(segment))
+        elif kind == "line":
+            points.extend((tuple(segment["start"]),tuple(segment["end"])))
+        elif kind == "quadratic":
+            points.extend((tuple(segment["start"]),tuple(segment["control"]),tuple(segment["end"])))
+        elif kind == "cubic":
+            points.extend((tuple(segment["start"]),tuple(segment["control1"]),tuple(segment["control2"]),tuple(segment["end"])))
+    if not points: return None
+    min_x=min(p[0] for p in points); min_y=min(p[1] for p in points)
+    max_x=max(p[0] for p in points); max_y=max(p[1] for p in points)
+    return {"min_x_mm":min_x,"min_y_mm":min_y,"max_x_mm":max_x,"max_y_mm":max_y,
+            "width_mm":max_x-min_x,"height_mm":max_y-min_y,"area_mm2":(max_x-min_x)*(max_y-min_y)}
+
+
 def _segment_endpoints(segment):
     """Return normalized-mm start/end points, including transformed arcs."""
     kind=segment.get("type")
