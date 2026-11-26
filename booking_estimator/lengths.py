@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import math
 
+from .geometry import Point
+
 
 def _distance(a, b):
     return math.hypot(b[0] - a[0], b[1] - a[1])
@@ -76,6 +78,22 @@ def segment_length(segment, tolerance=1e-8):
     Elliptical arc records are intentionally not supported in this phase.
     """
     kind = segment.get("type")
+    if kind == "transformed_arc":
+        original = segment["segment"]
+        matrix = segment["matrix"]
+        params = _arc_parameters(original)
+        if params is None:
+            p0 = matrix.apply(Point(*original["start"]))
+            p1 = matrix.apply(Point(*original["end"]))
+            return math.hypot(p1.x-p0.x, p1.y-p0.y)
+        rx, ry, theta1, delta = params
+        phi = math.radians(float(original["rotation"]))
+        cp, sp = math.cos(phi), math.sin(phi)
+        def transformed_speed(theta):
+            dx, dy = -rx*math.sin(theta), ry*math.cos(theta)
+            dx, dy = cp*dx-sp*dy, sp*dx+cp*dy
+            return math.hypot(matrix.a*dx+matrix.c*dy, matrix.b*dx+matrix.d*dy)
+        return abs(_adaptive_simpson(transformed_speed, theta1, theta1+delta, tolerance))
     if kind == "line":
         return _distance(segment["start"], segment["end"])
     if kind == "arc":
