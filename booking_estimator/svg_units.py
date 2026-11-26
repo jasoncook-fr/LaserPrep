@@ -19,8 +19,8 @@ _MM_PER_UNIT = {
     "pc": 25.4 / 6.0,
     "px": 25.4 / 96.0,
 }
-_LENGTH_RE = re.compile(r"^\\s*([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)\\s*([a-zA-Z]*)\\s*$")
-_VIEWBOX_RE = re.compile(r"[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?")
+_LENGTH_RE = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*([a-zA-Z]*)\s*$")
+_VIEWBOX_RE = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?")
 
 
 class SVGUnitError(ValueError):
@@ -33,10 +33,7 @@ def parse_length_mm(value: str) -> float:
     if not match:
         raise SVGUnitError(f"Invalid SVG length: {value!r}")
     number, unit = match.groups()
-    unit = unit.lower()
-    if unit == "":
-        # Unitless SVG lengths are user units, treated as CSS px for root dimensions.
-        unit = "px"
+    unit = unit.lower() or "px"
     if unit not in _MM_PER_UNIT:
         raise SVGUnitError(f"Unsupported or non-absolute SVG unit: {unit!r}")
     result = float(number) * _MM_PER_UNIT[unit]
@@ -50,7 +47,6 @@ def parse_viewbox(value: Optional[str]) -> Optional[tuple[float, float, float, f
     if value is None or not value.strip():
         return None
     numbers = _VIEWBOX_RE.findall(value)
-    # Ensure separators/contents are not silently discarded by the regex.
     residue = _VIEWBOX_RE.sub("", value)
     if residue.replace(",", "").strip():
         raise SVGUnitError(f"Invalid viewBox: {value!r}")
@@ -65,8 +61,8 @@ def parse_viewbox(value: Optional[str]) -> Optional[tuple[float, float, float, f
 def resolve_svg_dimensions(width: Optional[str], height: Optional[str], viewbox: Optional[str]) -> SVGDimensions:
     """Resolve canvas physical dimensions and coordinate-to-mm scale.
 
-    If physical width/height are absent, the viewBox is retained but the canvas is
-    considered physically unknown. We deliberately avoid guessing a physical size.
+    If physical root dimensions are absent, physical dimensions are deliberately
+    not guessed from viewBox alone.
     """
     vb = parse_viewbox(viewbox)
     warnings: list[str] = []
@@ -77,9 +73,8 @@ def resolve_svg_dimensions(width: Optional[str], height: Optional[str], viewbox:
     w_mm = parse_length_mm(width)
     h_mm = parse_length_mm(height)
     if vb is None:
-        # Without viewBox, SVG coordinates use the root's declared dimensions.
-        sx = _dimension_user_units_per_mm(width)
-        sy = _dimension_user_units_per_mm(height)
+        sx = _unit_scale_mm_per_user_unit(width)
+        sy = _unit_scale_mm_per_user_unit(height)
         return SVGDimensions(w_mm, h_mm, None, sx, sy, True, warnings)
 
     _, _, vb_w, vb_h = vb
@@ -90,7 +85,7 @@ def resolve_svg_dimensions(width: Optional[str], height: Optional[str], viewbox:
     return SVGDimensions(w_mm, h_mm, vb, sx, sy, True, warnings)
 
 
-def _dimension_user_units_per_mm(value: str) -> float:
+def _unit_scale_mm_per_user_unit(value: str) -> float:
     match = _LENGTH_RE.match(str(value))
     if not match:
         raise SVGUnitError(f"Invalid SVG length: {value!r}")
@@ -98,4 +93,4 @@ def _dimension_user_units_per_mm(value: str) -> float:
     unit = unit.lower() or "px"
     if unit not in _MM_PER_UNIT:
         raise SVGUnitError(f"Unsupported or non-absolute SVG unit: {unit!r}")
-    return 1.0 / _MM_PER_UNIT[unit]
+    return _MM_PER_UNIT[unit]
