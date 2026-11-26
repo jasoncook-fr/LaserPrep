@@ -6,13 +6,14 @@ An isolated experimental package for SVG analysis and future laser-runtime predi
 
 - **Stage 1:** root SVG physical-dimension parsing and viewBox scale resolution.
 - **Stage 2:** geometry records, points, bounding boxes, affine matrix composition, and SVG transform-list parsing.
-- **Stage 3 (initial):** extraction of rect, circle, ellipse, line, polyline and polygon primitives, with nested group transforms and basic inherited styles.
+- **Stage 3:** primitive extraction, group transforms, and inherited styles.
+- **Stage 4 (initial):** SVG path data parsing for absolute and relative M/L/H/V and Z commands. Curves and arcs are deferred.
 
-The geometry foundation deliberately does not yet extract SVG elements or measure paths. Transform-list parsing currently supports `matrix`, `translate`, `scale`, `rotate` (including a center), `skewX`, and `skewY`, with argument validation and composition. Coordinates in future geometry analysis are intended to be normalized to millimetres. SVG matrix composition is defined so that `self.compose(other)` applies `other` first, then `self`.
+Path parsing produces line-segment records in SVG user coordinates. This stage does not yet calculate path length, bounds, normalize units, or classify laser operations.
 
-Absolute SVG units are converted using the CSS SVG reference of 96 px per inch. Unitless root dimensions are treated as CSS px. If either physical root dimension is absent, physical dimensions are deliberately not inferred from the viewBox alone.
+The geometry foundation deliberately keeps extraction, normalization, measurement, and classification separate. Transform-list parsing currently supports matrix, translate, scale, rotate (including a center), skewX, and skewY. Coordinates in future geometry analysis are intended to be normalized to millimetres.
 
-Aspect-ratio mismatches are flagged; full SVG preserveAspectRatio behavior is not yet implemented.
+Absolute SVG units are converted using the CSS SVG reference of 96 px per inch. Unitless root dimensions are treated as CSS px. If either physical root dimension is absent, physical dimensions are deliberately not inferred from the viewBox alone. Aspect-ratio mismatches are flagged; full SVG preserveAspectRatio behavior is not yet implemented.
 
 ## Development
 
