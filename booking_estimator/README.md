@@ -7,9 +7,9 @@ An isolated experimental package for SVG analysis and future laser-runtime predi
 - **Stage 1:** root SVG physical-dimension parsing and viewBox scale resolution.
 - **Stage 2:** geometry records, points, bounding boxes, affine matrix composition, and SVG transform-list parsing.
 - **Stage 3:** primitive extraction, group transforms, and inherited styles.
-- **Stage 4 (initial):** SVG path data parsing for absolute and relative M/L/H/V and Z commands. Curves and arcs are deferred.
+- **Stage 4:** SVG path data parsing for absolute and relative M/L/H/V/Z and cubic Bézier C/S commands, including smooth-control reflection.
 
-Path parsing produces line-segment records in SVG user coordinates. This stage does not yet calculate path length, bounds, normalize units, or classify laser operations.
+Path parsing produces line and cubic Bézier segment records in SVG user coordinates. Quadratic curves and arcs remain unsupported. This stage does not yet calculate path length, bounds, normalize units, or classify laser operations.
 
 The geometry foundation deliberately keeps extraction, normalization, measurement, and classification separate. Transform-list parsing currently supports matrix, translate, scale, rotate (including a center), skewX, and skewY. Coordinates in future geometry analysis are intended to be normalized to millimetres.
 
