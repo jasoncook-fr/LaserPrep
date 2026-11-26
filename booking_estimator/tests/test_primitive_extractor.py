@@ -69,3 +69,18 @@ def test_initial_path_extraction():
     records = extract_basic_shapes(svg)
     assert [r.element_type for r in records] == ["path", "rect"]
     assert records[0].payload["segments"][0]["end"] == (1.0, 1.0)
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("10mm", 10*96/25.4), ("1cm", 10*96/25.4),
+    ("1in", 96.0), ("72pt", 96.0), ("96px", 96.0),
+])
+def test_absolute_units_in_shape_attributes_convert_to_css_px(value, expected):
+    svg=f'<svg xmlns="http://www.w3.org/2000/svg"><rect width="{value}" height="1"/></svg>'
+    record=extract_basic_shapes(svg)[0]
+    assert record.payload["width"] == pytest.approx(expected)
+
+
+def test_unitless_primitive_attributes_remain_user_units():
+    svg='<svg xmlns="http://www.w3.org/2000/svg"><circle r="5"/></svg>'
+    assert extract_basic_shapes(svg)[0].payload["r"] == 5
