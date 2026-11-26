@@ -10,24 +10,33 @@ import re
 
 from .geometry import Matrix
 
-_NUMBER = r"[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?"
-_FUNC_RE = re.compile(r"([A-Za-z]+)\\s*\\(([^()]*)\\)")
-_SEP_RE = re.compile(r"[\\s,]+")
+_NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+_FUNC_RE = re.compile(r"([A-Za-z]+)\s*\(([^()]*)\)")
+_NUM_RE = re.compile(_NUMBER)
 
 
 def _parse_numbers(text: str) -> list[float]:
     text = text.strip()
     if not text:
         return []
-    # Reject anything not accounted for by a valid number and separator.
-    tokens = _SEP_RE.split(text)
-    if any(not token for token in tokens):
-        tokens = [t for t in tokens if t]
-    joined = "".join(tokens)
-    compact = re.sub(r"[\\s,]+", "", text)
-    if joined != compact or not all(re.fullmatch(_NUMBER, t) for t in tokens):
-        raise ValueError(f"Invalid numeric arguments: {text!r}")
-    return [float(t) for t in tokens]
+    tokens = []
+    pos = 0
+    while pos < len(text):
+        while pos < len(text) and (text[pos].isspace() or text[pos] == ","):
+            pos += 1
+        if pos >= len(text):
+            break
+        match = _NUM_RE.match(text, pos)
+        if not match:
+            raise ValueError(f"Invalid numeric arguments: {text!r}")
+        tokens.append(float(match.group()))
+        pos = match.end()
+        # A comma must not be repeated or trail the list.
+        if pos < len(text) and text[pos] == ",":
+            pos += 1
+            if pos == len(text) or text[pos] == ",":
+                raise ValueError(f"Invalid numeric separators: {text!r}")
+    return tokens
 
 
 def parse_transform_function(name: str, args: list[float]) -> Matrix:
@@ -91,9 +100,7 @@ def parse_transform_list(text: str) -> Matrix:
         transforms.append(parse_transform_function(name, args))
         pos = match.end()
 
-    if not transforms:
-        return Matrix()
-    combined = transforms[0]
-    for transform in transforms[1:]:
+    combined = Matrix()
+    for transform in transforms:
         combined = combined.compose(transform)
     return combined
