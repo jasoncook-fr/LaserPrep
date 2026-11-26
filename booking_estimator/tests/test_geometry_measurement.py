@@ -41,3 +41,24 @@ def test_affine_transformed_arc_length():
     transformed=transform_segment(Matrix(a=2,d=1),arc)
     assert transformed["type"]=="transformed_arc"
     assert math.isclose(segment_length(transformed),2.422112055,rel_tol=1e-5)
+
+
+def test_hidden_geometry_is_excluded():
+    svg='<svg width="20mm" height="20mm" viewBox="0 0 20 20"><rect width="2" height="2"/><rect style="display:none" width="10" height="10"/><g visibility="hidden"><circle r="3"/></g></svg>'
+    result=analyze_svg_geometry(svg)
+    assert len(result["elements"])==1
+    assert math.isclose(result["total_length_mm"],8,rel_tol=1e-6)
+
+
+def test_definition_geometry_is_not_measured_and_warned():
+    svg='<svg width="20mm" height="20mm" viewBox="0 0 20 20"><defs><rect id="unused" width="10" height="10"/></defs><rect width="2" height="2"/></svg>'
+    result=analyze_svg_geometry(svg)
+    assert len(result["elements"])==1
+    assert any(w.get("source_id")=="unused" for w in result["warnings"])
+
+
+def test_text_and_use_report_coverage_warnings():
+    svg='<svg width="20mm" height="20mm" viewBox="0 0 20 20"><text id="label">abc</text><use href="#shape"/></svg>'
+    result=analyze_svg_geometry(svg)
+    assert result["elements"]==[]
+    assert {w["element_type"] for w in result["warnings"]} >= {"text", "use"}
