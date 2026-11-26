@@ -73,3 +73,8 @@ Primitive geometry length attributes now accept supported absolute SVG units (mm
 ### Stage 9.6 — explicit coverage classification
 
 The analyzer returns `coverage_complete`, `coverage_status` (complete/partial), `warning_count`, `warning_element_types`, and `measured_element_count`. Any coverage/extraction warning currently makes the result partial, rather than implying that the reported total includes all relevant SVG geometry. A positive measurement tolerance is required. This is a conservative initial classification; it is not yet a full SVG semantic audit.
+
+
+### Stage 9.7 — coverage scan hardening
+
+The coverage scan skips XML comments and known structural, styling, animation, gradient, filter, and other non-drawing SVG nodes. Unknown SVG element names remain conservative warnings. Duplicate warning entries are removed by element ID/type/message signature. This improves warning signal quality but is not a complete SVG renderer or a guarantee that all visible/cut geometry is accounted for.
