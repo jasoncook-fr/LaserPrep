@@ -68,3 +68,8 @@ The unified analyzer now excludes elements and groups marked `display:none` or h
 ### Stage 9.6 follow-up — absolute units in primitive attributes
 
 Primitive geometry length attributes now accept supported absolute SVG units (mm, cm, in, pt, pc, px), converting them to equivalent CSS px user units before the viewport normalization pipeline. Unitless values remain in the document's user-coordinate system. Percentages and font-relative units are not handled and produce explicit extraction errors. This does not apply unit suffixes to path-data coordinates or point lists.
+
+
+### Stage 9.6 — explicit coverage classification
+
+The analyzer returns `coverage_complete`, `coverage_status` (complete/partial), `warning_count`, `warning_element_types`, and `measured_element_count`. Any coverage/extraction warning currently makes the result partial, rather than implying that the reported total includes all relevant SVG geometry. A positive measurement tolerance is required. This is a conservative initial classification; it is not yet a full SVG semantic audit.
