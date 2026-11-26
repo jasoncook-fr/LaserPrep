@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 TOKEN = re.compile(r"[MmLlHhVvZzCcSsQqTt]|[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?")
-COMMANDS = set("MmLlHhVvZzCcSsQqTt")
+COMMANDS = set("MmLlHhVvZzCcSsQqTtAa")
 
 
 def parse_path_data(data: str) -> list[dict[str, object]]:
@@ -107,6 +107,18 @@ def parse_path_data(data: str) -> list[dict[str, object]]:
             end=(x,y)
             segments.append({"type":"quadratic","start":current,"control":control,"end":end})
             current=end; previous_curve_control=control; previous_segment_type="quadratic"
+        elif cmd in "Aa":
+            if i + 6 >= len(tokens) or any(tokens[i+j] in COMMANDS for j in range(7)):
+                raise ValueError("Arc requires seven parameters")
+            rx=float(tokens[i]); ry=float(tokens[i+1]); rotation=float(tokens[i+2])
+            large_arc=float(tokens[i+3]); sweep=float(tokens[i+4])
+            x=float(tokens[i+5]); y=float(tokens[i+6]); i+=7
+            if large_arc not in (0.0,1.0) or sweep not in (0.0,1.0):
+                raise ValueError("Arc flags must be 0 or 1")
+            if cmd=="a": x+=current[0]; y+=current[1]
+            end=(x,y)
+            segments.append({"type":"arc","start":current,"rx":abs(rx),"ry":abs(ry),"rotation":rotation,"large_arc":int(large_arc),"sweep":int(sweep),"end":end})
+            current=end; previous_curve_control=None; previous_segment_type="arc"
         else:
             raise ValueError(f"Unsupported path command: {cmd}")
 
