@@ -103,3 +103,30 @@ Measured elements now expose axis-aligned bounds in normalized millimetres (min/
 ### Stage 11 — geometric complexity indicators
 
 The `geometry_complexity` module analyzes connected consecutive-segment transitions and reports turning-angle distribution, mean/median/maximum and accumulated angle, configurable sharp-turn counts, and a turn-density indicator per metre. Transitions across gaps larger than tolerance are excluded. Arc endpoint tangent estimates are sample-based. These metrics describe geometric direction changes only and are not machine-motion or runtime predictions.
+
+
+## Stages 12–18 — feature and calibration groundwork
+
+- Stage 12: `spatial_complexity` provides a coarse grid density and distribution profile. Element bounding-box centroids assign each element to a grid cell; this is a proxy, not exact spatial path rasterization.
+- Stages 13–14: `operation_features` accepts explicit style-to-operation mappings only. It does not infer cutting or engraving from colors without a caller mapping. `workload_features` combines existing and new features.
+- Stage 15: `machine_model` supplies configurable machine parameters. Default configurations are placeholders and must not be treated as measured speeds.
+- Stage 16: `calibration` creates and stores JSON Lines records with actual runtime, file identifiers, machine/material context and optional feature/configuration snapshots.
+- Stage 17: `runtime_model` offers a transparent geometry-length baseline using assumed effective speeds and optional simple corner penalty. It is **unvalidated** and not suitable for operational scheduling.
+- Stage 18: `validation` computes error metrics for paired predicted/actual runtime observations.
+
+### Example
+
+```python
+from booking_estimator.geometry_measurement import analyze_svg_geometry
+from booking_estimator.workload_features import build_workload_features
+from booking_estimator.machine_model import MachineConfig
+from booking_estimator.runtime_model import estimate_runtime
+
+measurement = analyze_svg_geometry(svg_text)
+features = build_workload_features(measurement)
+config = MachineConfig("machine-id", 60, 10, source="placeholder")
+result = estimate_runtime(features, config, material="plywood", thickness_mm=3)
+# result confidence is deliberately marked unvalidated
+```
+
+These additions are experimental feature/calibration scaffolding. The baseline prediction is not trained, machine settings are not verified, and the spatial grid is coarse. Actual calibration records and independent validation are required before runtime predictions are used for bookings or machine planning.
