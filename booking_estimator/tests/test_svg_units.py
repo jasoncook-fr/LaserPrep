@@ -1,6 +1,5 @@
 """Tests for SVG dimension normalization."""
 
-import math
 import pytest
 
 from booking_estimator.svg_units import SVGUnitError, parse_length_mm, parse_viewbox, resolve_svg_dimensions
@@ -8,7 +7,7 @@ from booking_estimator.svg_units import SVGUnitError, parse_length_mm, parse_vie
 
 @pytest.mark.parametrize("value,expected", [
     ("1000mm", 1000.0), ("100cm", 1000.0), ("39.37007874in", 1000.0),
-    ("2834.645669pt", 1000.0), ("166.6666667pc", 1000.0),
+    ("2834.645669pt", 1000.0), ("236.2204724pc", 1000.0),
     ("3779.527559px", 1000.0), ("3779.527559", 1000.0),
 ])
 def test_absolute_units(value, expected):
@@ -38,7 +37,10 @@ def test_unitless_root_dimensions_use_css_px_reference():
     result = resolve_svg_dimensions("960", "480", None)
     assert result.width_mm == pytest.approx(254)
     assert result.height_mm == pytest.approx(127)
-    assert result.scale_x_mm_per_user_unit == pytest.approx(96 / 25.4)
+    # SVG unitless root lengths are interpreted as CSS px, so each user
+    # unit corresponds to 25.4 / 96 millimetres.
+    assert result.scale_x_mm_per_user_unit == pytest.approx(25.4 / 96)
+    assert result.scale_y_mm_per_user_unit == pytest.approx(25.4 / 96)
 
 
 def test_missing_dimensions_are_not_guessed():
