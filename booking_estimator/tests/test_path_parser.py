@@ -43,7 +43,7 @@ def test_smooth_cubic_after_cubic_reflection_relative():
     assert s[1]["control2"]==(5.,0.)
     assert s[1]["end"]==(6.,0.)
 
-@pytest.mark.parametrize("d",["","M0","X0 0","M0 0 A1 1 0 0 1 2 2"])
+@pytest.mark.parametrize("d",["","M0","X0 0",])
 def test_invalid_or_deferred_commands(d):
     with pytest.raises(ValueError): parse_path_data(d)
 
@@ -72,4 +72,24 @@ def test_smooth_quadratic_without_prior_quadratic():
 
 @pytest.mark.parametrize("d", ["M0 0 Q1 1", "M0 0 T", "M0 0 Q1 1 2 2 A1 1 0 0 1 3 3"])
 def test_malformed_or_arc_still_deferred(d):
+    with pytest.raises(ValueError): parse_path_data(d)
+
+
+
+def test_arc_absolute():
+    s=parse_path_data("M10 10 A5 6 45 1 0 20 20")
+    assert s[0]=={"type":"arc","start":(10.,10.),"rx":5.,"ry":6.,"rotation":45.,"large_arc":1,"sweep":0,"end":(20.,20.)}
+
+def test_arc_relative_and_repeated():
+    s=parse_path_data("M1 2 a3 4 30 0 1 5 6 2 2 0 1 0 4 0")
+    assert len(s)==2
+    assert s[0]["end"]==(6.,8.) and s[0]["start"]==(1.,2.)
+    assert s[1]["end"]==(10.,8.) and s[1]["large_arc"]==1
+
+def test_arc_zero_radius_normalized_positive():
+    s=parse_path_data("M0 0 A-2 0 0 0 1 3 4")
+    assert s[0]["rx"]==2. and s[0]["ry"]==0.
+
+@pytest.mark.parametrize("d", ["M0 0 A1 1 0 2 0 2 2", "M0 0 A1 1 0 0 2 2 2", "M0 0 A1 1 0 0 1"])
+def test_invalid_arc(d):
     with pytest.raises(ValueError): parse_path_data(d)
