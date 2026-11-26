@@ -142,7 +142,13 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
             seen_warnings.add(signature); unique_warnings.append(warning)
     warnings=unique_warnings
     warning_types=sorted({w.get("element_type", "unknown") for w in warnings})
-    return {"elements":results,"total_length_mm":total,"coordinate_unit":"mm",
+    bounded=[e for e in results if "min_x_mm" in e]
+    document_bounds=None
+    if bounded:
+        min_x=min(e["min_x_mm"] for e in bounded);min_y=min(e["min_y_mm"] for e in bounded)
+        max_x=max(e["max_x_mm"] for e in bounded);max_y=max(e["max_y_mm"] for e in bounded)
+        document_bounds={"min_x_mm":min_x,"min_y_mm":min_y,"max_x_mm":max_x,"max_y_mm":max_y,"width_mm":max_x-min_x,"height_mm":max_y-min_y,"area_mm2":(max_x-min_x)*(max_y-min_y)}
+    return {"elements":results,**(document_bounds or {}),"total_length_mm":total,"coordinate_unit":"mm",
             "warnings":warnings,"measurement_tolerance_mm":tolerance_mm,
             "coverage_complete":len(warnings)==0,
             "coverage_status":"complete" if not warnings else "partial",
