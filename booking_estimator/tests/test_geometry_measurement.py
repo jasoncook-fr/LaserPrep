@@ -109,6 +109,6 @@ def test_segment_statistics_for_mixed_geometry():
     assert result["segment_type_counts"]["line"] == 4
     assert result["segment_type_counts"]["quadratic"] == 1
     assert result["segment_type_counts"]["cubic"] == 1
-    assert result["segment_type_counts"]["arc"] == 4
+    assert result["segment_type_counts"]["transformed_arc"] == 4
     assert result["measured_element_count"] == 3
     assert all(e["segment_count"] == sum(e["segment_type_counts"].values()) for e in result["elements"])
