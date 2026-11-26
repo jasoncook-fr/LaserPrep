@@ -63,7 +63,7 @@ def test_elliptical_arc():
 
 def test_arc_radii_correction():
     seg = {"type": "arc", "start": (0, 0), "rx": 1, "ry": 1, "rotation": 0, "large_arc": 0, "sweep": 1, "end": (4, 0)}
-    assert segment_length(seg) == pytest.approx(4.0)
+    assert segment_length(seg) == pytest.approx(2.0*math.pi, rel=1e-7)
 
 
 def test_arc_zero_radius_is_line():
