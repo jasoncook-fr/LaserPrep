@@ -43,3 +43,8 @@ nested groups and path elements to line and Bézier segments. Arc records are
 retained as explicit transformed-arc wrappers. Styles and source IDs remain
 available. Primitive conversion, root viewport/viewBox normalization, and
 millimetre conversion are still separate stages.
+
+
+## SVG viewport normalization (Stage 9.3)
+
+The `viewport` module maps SVG viewBox coordinates into physical viewport millimetres and implements `preserveAspectRatio`: `none`, all nine alignment positions, and `meet`/`slice` (including the default xMidYMid meet and optional defer token). This mapping is an explicit matrix; integration into full geometry processing and unit conversion follows in Stage 9.4.
