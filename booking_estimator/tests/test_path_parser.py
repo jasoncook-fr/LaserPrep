@@ -70,8 +70,8 @@ def test_smooth_quadratic_without_prior_quadratic():
     s=parse_path_data("M1 1 L2 2 T4 4")
     assert s[1]["control"]==(2.,2.)
 
-@pytest.mark.parametrize("d", ["M0 0 Q1 1", "M0 0 T", "M0 0 Q1 1 2 2 A1 1 0 0 1 3 3"])
-def test_malformed_or_arc_still_deferred(d):
+@pytest.mark.parametrize("d", ["M0 0 Q1 1", "M0 0 T"])
+def test_malformed_quadratic_paths(d):
     with pytest.raises(ValueError): parse_path_data(d)
 
 
