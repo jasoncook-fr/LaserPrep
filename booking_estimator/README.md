@@ -53,3 +53,8 @@ The `viewport` module maps SVG viewBox coordinates into physical viewport millim
 ## Physical path normalization (Stage 9.4)
 
 The `svg_normalization` module provides `normalize_svg_paths()`, requiring physical root dimensions and mapping extracted path geometry to millimetre coordinates using the root viewBox/preserveAspectRatio mapping and element/group transforms. It returns source/style metadata and explicitly labels the output coordinate unit as mm. Primitive shape conversion and full transformed-arc length treatment remain pending.
+
+
+## Unified geometry analysis (Stage 9.5, initial implementation)
+
+The `geometry_measurement` module exposes `analyze_svg_geometry()`, converting supported paths and SVG primitives into normalized millimetre segment geometry and reporting per-element plus total lengths. Primitive conversion supports rect (including rounded rects), circle, ellipse, line, polyline and polygon. Elliptical arcs are measured numerically, including arcs transformed by arbitrary affine matrices, using adaptive Simpson integration of transformed parametric speed. Output retains IDs, source element/type and styles, and includes a warning list for elements that fail processing. This remains an experimental geometric perimeter/line-length analysis, not yet laser runtime prediction or operation classification.
