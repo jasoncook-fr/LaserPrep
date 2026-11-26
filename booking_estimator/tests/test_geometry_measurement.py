@@ -62,3 +62,26 @@ def test_text_and_use_report_coverage_warnings():
     result=analyze_svg_geometry(svg)
     assert result["elements"]==[]
     assert {w["element_type"] for w in result["warnings"]} >= {"text", "use"}
+
+
+
+def test_coverage_status_complete_for_supported_clean_svg():
+    result=analyze_svg_geometry('<svg width="10mm" height="10mm" viewBox="0 0 10 10"><rect width="2" height="2"/></svg>')
+    assert result["coverage_complete"] is True
+    assert result["coverage_status"] == "complete"
+    assert result["warning_count"] == 0
+    assert result["measured_element_count"] == 1
+
+
+def test_coverage_status_partial_for_unmeasured_text():
+    result=analyze_svg_geometry('<svg width="10mm" height="10mm" viewBox="0 0 10 10"><rect width="2" height="2"/><text>test</text></svg>')
+    assert result["coverage_complete"] is False
+    assert result["coverage_status"] == "partial"
+    assert result["warning_count"] >= 1
+    assert "text" in result["warning_element_types"]
+
+
+def test_nonpositive_tolerance_rejected():
+    import pytest
+    with pytest.raises(ValueError, match="tolerance_mm must be positive"):
+        analyze_svg_geometry('<svg width="10mm" height="10mm"/>', tolerance_mm=0)
