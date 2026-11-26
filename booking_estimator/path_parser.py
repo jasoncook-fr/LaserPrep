@@ -12,6 +12,8 @@ def parse_path_data(data: str) -> list[dict[str, object]]:
     closed=True. Curves and arcs are deliberately unsupported in this stage.
     """
     tokens = TOKEN.findall(data or "")
+    if not tokens:
+        raise ValueError("SVG path data must not be empty")
     if "".join(tokens).replace(" ", "") == "" and data.strip():
         raise ValueError("Invalid SVG path data")
     # Ensure no unrecognized text is silently skipped.
