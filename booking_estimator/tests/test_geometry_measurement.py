@@ -140,3 +140,23 @@ def test_topology_disconnected_path_segments():
     assert element["gap_count"] == 1
     assert element["subpath_count"] == 2
     assert element["is_closed"] is False
+
+
+
+def test_element_and_document_bounds_for_rect():
+    svg='<svg width="20mm" height="20mm" viewBox="0 0 20 20"><rect id="a" x="2" y="3" width="4" height="5"/><rect id="b" x="10" y="1" width="2" height="2"/></svg>'
+    result=analyze_svg_geometry(svg)
+    a,b=result["elements"]
+    assert a["min_x_mm"] == 2 and a["min_y_mm"] == 3
+    assert a["width_mm"] == 4 and a["height_mm"] == 5
+    assert result["min_x_mm"] == 2 and result["min_y_mm"] == 1
+    assert result["max_x_mm"] == 12 and result["max_y_mm"] == 8
+    assert result["width_mm"] == 10 and result["height_mm"] == 7
+    assert result["area_mm2"] == 70
+
+
+def test_bounds_include_curve_control_points_conservatively():
+    svg='<svg width="20mm" height="20mm" viewBox="0 0 20 20"><path d="M0 0 C0 10 10 10 10 0"/></svg>'
+    e=analyze_svg_geometry(svg)["elements"][0]
+    assert e["min_x_mm"] == 0 and e["max_x_mm"] == 10
+    assert e["min_y_mm"] == 0 and e["max_y_mm"] == 10
