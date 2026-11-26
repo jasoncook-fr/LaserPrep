@@ -25,7 +25,7 @@ def test_rect_rounding_radius_clamped():
 def test_measurement_circle_mm():
     result=analyze_svg_geometry('<svg width="10mm" height="10mm" viewBox="0 0 10 10"><circle id="c" cx="5" cy="5" r="2"/></svg>')
     assert len(result["elements"])==1
-    assert math.isclose(result["elements"][0]["length_mm"],4*math.pi*2,rel_tol=1e-6)
+    assert math.isclose(result["elements"][0]["length_mm"],2*math.pi*2,rel_tol=1e-6)
 
 
 def test_mixed_shapes_and_transforms():
