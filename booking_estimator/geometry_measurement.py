@@ -11,6 +11,7 @@ from .lengths import path_length
 
 SUPPORTED = {"rect", "circle", "ellipse", "line", "polyline", "polygon", "path"}
 CONTAINER = {"svg", "g", "defs", "symbol", "clipPath", "mask", "metadata", "title", "desc"}
+NON_DRAWING = {"style", "script", "linearGradient", "radialGradient", "stop", "pattern", "marker", "filter", "feGaussianBlur", "feColorMatrix", "feBlend", "feOffset", "feFlood", "feComposite", "feMerge", "feMergeNode", "animate", "animateTransform", "animateMotion", "set"}
 
 
 def _local(tag: str) -> str:
@@ -50,13 +51,15 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
     results=[]; warnings=[]; total=0.0
     # Collect explicit unsupported drawable nodes and track definition subtrees.
     def scan(node, inherited, in_defs=False):
+        if not isinstance(node.tag, str):
+            return
         tag=_local(node.tag); st=_style(node,inherited)
         hidden=(st.get("display", "").strip().lower()=="none" or
                 st.get("visibility", "").strip().lower() in {"hidden", "collapse"})
         in_defs = in_defs or tag in {"defs", "symbol", "clipPath", "mask"}
         if hidden:
             return
-        if tag not in SUPPORTED and tag not in CONTAINER and tag not in {"text", "image", "use", "foreignObject"}:
+        if tag not in SUPPORTED and tag not in CONTAINER and tag not in NON_DRAWING and tag not in {"text", "image", "use", "foreignObject"}:
             warnings.append({"source_id":node.attrib.get("id"),"element_type":tag,
                             "message":"Unsupported drawable or SVG element; not measured"})
         elif tag in {"text", "image", "use", "foreignObject"}:
@@ -87,6 +90,12 @@ def analyze_svg_geometry(svg_source: str, tolerance_mm: float = 1e-5) -> dict:
         except Exception as exc:
             warnings.append({"source_id":rec.source_id,"element_type":rec.element_type,
                             "message":str(exc)})
+    unique_warnings=[]; seen_warnings=set()
+    for warning in warnings:
+        signature=(warning.get("source_id"),warning.get("element_type"),warning.get("message"))
+        if signature not in seen_warnings:
+            seen_warnings.add(signature); unique_warnings.append(warning)
+    warnings=unique_warnings
     warning_types=sorted({w.get("element_type", "unknown") for w in warnings})
     return {"elements":results,"total_length_mm":total,"coordinate_unit":"mm",
             "warnings":warnings,"measurement_tolerance_mm":tolerance_mm,
