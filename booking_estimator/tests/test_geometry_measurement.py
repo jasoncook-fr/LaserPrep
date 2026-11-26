@@ -112,3 +112,31 @@ def test_segment_statistics_for_mixed_geometry():
     assert result["segment_type_counts"]["transformed_arc"] == 4
     assert result["measured_element_count"] == 3
     assert all(e["segment_count"] == sum(e["segment_type_counts"].values()) for e in result["elements"])
+
+
+
+def test_topology_closed_polygon_and_rectangle():
+    svg='<svg width="10mm" height="10mm" viewBox="0 0 10 10"><rect width="2" height="2"/><polygon points="0,0 2,0 2,2 0,2"/></svg>'
+    result=analyze_svg_geometry(svg)
+    assert result["elements"][0]["is_closed"] is True
+    assert result["elements"][0]["is_continuous"] is True
+    assert result["elements"][0]["subpath_count"] == 1
+    assert result["elements"][1]["is_closed"] is True
+
+
+def test_topology_open_line():
+    svg='<svg width="10mm" height="10mm" viewBox="0 0 10 10"><line x1="1" y1="1" x2="5" y2="5"/></svg>'
+    element=analyze_svg_geometry(svg)["elements"][0]
+    assert element["is_closed"] is False
+    assert element["is_continuous"] is True
+    assert element["gap_count"] == 0
+    assert element["subpath_count"] == 1
+
+
+def test_topology_disconnected_path_segments():
+    svg='<svg width="10mm" height="10mm" viewBox="0 0 10 10"><path d="M0 0 L1 0 M4 4 L5 4"/></svg>'
+    element=analyze_svg_geometry(svg)["elements"][0]
+    assert element["is_continuous"] is False
+    assert element["gap_count"] == 1
+    assert element["subpath_count"] == 2
+    assert element["is_closed"] is False
