@@ -63,3 +63,8 @@ The `geometry_measurement` module exposes `analyze_svg_geometry()`, converting s
 ## Geometry validation and coverage (Stage 9.6, initial)
 
 The unified analyzer now excludes elements and groups marked `display:none` or hidden/collapsed visibility, avoids measuring geometry inside SVG definitions (`defs`, `symbol`, clipping paths, masks), and reports explicit coverage warnings for unmeasured text, images, references (`use`), foreign objects, and unsupported drawable tags. These warnings are intended to prevent partial geometry results from being mistaken for complete file analysis. SVG unit-bearing primitive attributes and broader reference/definition resolution remain future work.
+
+
+### Stage 9.6 follow-up — absolute units in primitive attributes
+
+Primitive geometry length attributes now accept supported absolute SVG units (mm, cm, in, pt, pc, px), converting them to equivalent CSS px user units before the viewport normalization pipeline. Unitless values remain in the document's user-coordinate system. Percentages and font-relative units are not handled and produce explicit extraction errors. This does not apply unit suffixes to path-data coordinates or point lists.
